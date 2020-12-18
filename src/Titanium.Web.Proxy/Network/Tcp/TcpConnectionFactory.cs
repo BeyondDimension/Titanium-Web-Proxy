@@ -399,7 +399,9 @@ retry:
 
                         if (upStreamEndPoint != null)
                         {
-                            tcpServerSocket.Bind(upStreamEndPoint);
+                            ipAddress = upStreamEndPoint.Address;
+                            tcpServerSocket = new Socket(upStreamEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                            //tcpServerSocket.Bind(upStreamEndPoint);
                         }
 
                         tcpServerSocket.NoDelay = proxyServer.NoDelay;
@@ -562,9 +564,15 @@ retry:
                         ApplicationProtocols = applicationProtocols,
                         TargetHost = remoteHostName,
                         ClientCertificates = null!,
-                        EnabledSslProtocols = enabledSslProtocols,
+                        EnabledSslProtocols = SslProtocols.Ssl3 | SslProtocols.Ssl2 | SslProtocols.Tls12,
                         CertificateRevocationCheckMode = proxyServer.CheckCertificateRevocation
                     };
+
+                    if (upStreamEndPoint != null)
+                    {
+                        options.TargetHost = upStreamEndPoint.Address.ToString();
+                    }
+
                     await sslStream.AuthenticateAsClientAsync(options, cancellationToken);
 #if NETSTANDARD2_1
                     negotiatedApplicationProtocol = sslStream.NegotiatedApplicationProtocol;

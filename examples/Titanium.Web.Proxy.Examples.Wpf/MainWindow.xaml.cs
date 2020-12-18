@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Http;
 using Titanium.Web.Proxy.Models;
+using Titanium.Web.Proxy.StreamExtended.Network;
 
 namespace Titanium.Web.Proxy.Examples.Wpf
 {
@@ -70,9 +71,14 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             ////note : load now (if existed)
             //proxyServer.CertificateManager.LoadRootCertificate(@"C:\NameFolder\rootCert.pfx", "PfxPassword");
 
-            var explicitEndPoint = new ExplicitProxyEndPoint(IPAddress.Any, 8000, true);
+            //var explicitEndPoint = new ExplicitProxyEndPoint(IPAddress.Any, 8000, true);
 
-            proxyServer.AddEndPoint(explicitEndPoint);
+            //proxyServer.AddEndPoint(explicitEndPoint);
+            var transparentEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
+            {
+            };
+
+            proxyServer.AddEndPoint(transparentEndPoint);
             //proxyServer.UpStreamHttpProxy = new ExternalProxy
             //{
             //    HostName = "158.69.115.45",
@@ -93,8 +99,8 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             proxyServer.BeforeRequest += ProxyServer_BeforeRequest;
             proxyServer.BeforeResponse += ProxyServer_BeforeResponse;
             proxyServer.AfterResponse += ProxyServer_AfterResponse;
-            explicitEndPoint.BeforeTunnelConnectRequest += ProxyServer_BeforeTunnelConnectRequest;
-            explicitEndPoint.BeforeTunnelConnectResponse += ProxyServer_BeforeTunnelConnectResponse;
+            //explicitEndPoint.BeforeTunnelConnectRequest += ProxyServer_BeforeTunnelConnectRequest;
+            //explicitEndPoint.BeforeTunnelConnectResponse += ProxyServer_BeforeTunnelConnectResponse;
             proxyServer.ClientConnectionCountChanged += delegate
             {
                 Dispatcher.Invoke(() => { ClientConnectionCount = proxyServer.ClientConnectionCount; });
@@ -105,7 +111,7 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             };
             proxyServer.Start();
 
-            proxyServer.SetAsSystemProxy(explicitEndPoint, ProxyProtocolType.AllHttp);
+            //proxyServer.SetAsSystemProxy(explicitEndPoint, ProxyProtocolType.AllHttp);
 
             InitializeComponent();
         }
@@ -162,7 +168,19 @@ namespace Titanium.Web.Proxy.Examples.Wpf
         private async Task ProxyServer_BeforeRequest(object sender, SessionEventArgs e)
         {
             //if (e.HttpClient.Request.HttpVersion.Major != 2) return;
-
+            if (e.HttpClient.Request.RequestUri.AbsoluteUri.Contains("steamcommunity.com"))
+            {
+                var ip = Dns.GetHostAddresses("steamcommunity-a.akamaihd.net");
+                e.HttpClient.UpStreamEndPoint = new IPEndPoint(IPAddress.Parse(ip[0].ToString()), 443);
+                if (e.HttpClient.ConnectRequest?.ClientHelloInfo != null)
+                {
+                    e.HttpClient.ConnectRequest.ClientHelloInfo.Extensions.Remove("server_name");
+                }
+            }
+            if (e.HttpClient.ConnectRequest?.TunnelType == TunnelType.Websocket)
+            {
+                e.DataSent += WebSocket_DataSent;
+            }
             SessionListItem item = null;
             await Dispatcher.InvokeAsync(() => { item = addSession(e); });
 
@@ -177,9 +195,14 @@ namespace Titanium.Web.Proxy.Examples.Wpf
                 }
             }
         }
+        private void WebSocket_DataSent(object sender, DataEventArgs e)
+        {
+            var args = (SessionEventArgs)sender;
 
+        }
         private async Task ProxyServer_BeforeResponse(object sender, SessionEventArgs e)
         {
+
             SessionListItem item = null;
             await Dispatcher.InvokeAsync(() =>
             {
