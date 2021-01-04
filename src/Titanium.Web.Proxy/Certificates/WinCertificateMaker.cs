@@ -174,8 +174,14 @@ namespace Titanium.Web.Proxy.Network.Certificate
             typeValue[0] = "1.3.6.1.5.5.7.3.1";
             typeOID.InvokeMember("InitializeFromValue", BindingFlags.InvokeMethod, null, oid, typeValue);
 
+            var oid2 = Activator.CreateInstance(typeOID);
+            typeValue[0] = "1.3.6.1.5.5.7.3.2";
+            typeOID.InvokeMember("InitializeFromValue", BindingFlags.InvokeMethod, null, oid2, typeValue);
+
             var oids = Activator.CreateInstance(typeOIDS);
             typeValue[0] = oid;
+            typeOIDS.InvokeMember("Add", BindingFlags.InvokeMethod, null, oids, typeValue);
+            typeValue[0] = oid2;
             typeOIDS.InvokeMember("Add", BindingFlags.InvokeMethod, null, oids, typeValue);
 
             var ekuExt = Activator.CreateInstance(typeEKUExt);
@@ -232,7 +238,7 @@ namespace Titanium.Web.Proxy.Network.Certificate
                 }
                 else
                 {
-                    typeValue = new object[] { 3, subject };//3==DNS, 8==IP ADDR
+                    typeValue = new object[] { AlternativeNameType.XCN_CERT_ALT_NAME_DNS_NAME, subject };//3==DNS, 8==IP ADDR
                     typeCAlternativeName.InvokeMember("InitializeFromString", BindingFlags.InvokeMethod, null, altDnsNames, typeValue);
                 }
 

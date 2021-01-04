@@ -296,7 +296,8 @@ namespace Titanium.Web.Proxy.Network
         {
             if (RootCertificate == null)
             {
-                throw new Exception("Root certificate is null.");
+                //throw new Exception("Root certificate is null.");
+                return false;
             }
 
             string value = $"{RootCertificate.Issuer}";
