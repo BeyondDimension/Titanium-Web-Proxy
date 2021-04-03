@@ -77,8 +77,8 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             var transparentEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
             {
             };
-
             proxyServer.AddEndPoint(transparentEndPoint);
+
             //proxyServer.UpStreamHttpProxy = new ExternalProxy
             //{
             //    HostName = "158.69.115.45",
