@@ -244,6 +244,7 @@ namespace Titanium.Web.Proxy
         /// </summary>
 #pragma warning disable 618
         public SslProtocols SupportedSslProtocols { get; set; } = SslProtocols.Ssl3 | SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12;
+#pragma warning restore 618
 
         /// <summary>
         ///     The buffer pool used throughout this proxy instance.
@@ -746,26 +747,15 @@ namespace Titanium.Web.Proxy
         /// </summary>
         private void onAcceptConnection(IAsyncResult asyn)
         {
+            var endPoint = (ProxyEndPoint)asyn.AsyncState;
+
+            Socket? tcpClient = null;
+
             try
             {
-                var endPoint = (ProxyEndPoint)asyn.AsyncState;
-
-                Socket? tcpClient = null;
-
                 // based on end point type call appropriate request handlers
                 tcpClient = endPoint.Listener!.EndAcceptSocket(asyn);
                 tcpClient.NoDelay = NoDelay;
-
-                if (tcpClient != null)
-                {
-                    Task.Run(async () =>
-                    {
-                        await handleClient(tcpClient, endPoint);
-                    });
-                }
-
-                // Get the listener that handles the client request.
-                endPoint.Listener!.BeginAcceptSocket(onAcceptConnection, endPoint);
             }
             catch (ObjectDisposedException)
             {
