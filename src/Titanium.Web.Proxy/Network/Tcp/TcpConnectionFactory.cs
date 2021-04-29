@@ -515,7 +515,7 @@ retry:
 
                 await proxyServer.InvokeServerConnectionCreateEvent(tcpServerSocket);
 
-                stream = new HttpServerStream(new NetworkStream(tcpServerSocket, true), proxyServer.BufferPool, cancellationToken);
+                stream = new HttpServerStream(proxyServer, new NetworkStream(tcpServerSocket, true), proxyServer.BufferPool, cancellationToken);
 
                 if (externalProxy != null && externalProxy.ProxyType == ExternalProxyType.Http && (isConnect || isHttps))
                 {
@@ -557,7 +557,7 @@ retry:
                         (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
                             proxyServer.SelectClientCertificate(sender, sessionArgs, targetHost, localCertificates,
                                 remoteCertificate, acceptableIssuers));
-                    stream = new HttpServerStream(sslStream, proxyServer.BufferPool, cancellationToken);
+                    stream = new HttpServerStream(proxyServer, sslStream, proxyServer.BufferPool, cancellationToken);
 
                     var options = new SslClientAuthenticationOptions
                     {
@@ -766,8 +766,15 @@ retry:
             }
         }
 
-        public void Dispose()
+        private bool disposed = false;
+
+        protected virtual void Dispose(bool disposing)
         {
+            if (disposed)
+            {
+                return;
+            }
+
             runCleanUpTask = false;
 
             try
@@ -799,6 +806,19 @@ retry:
                     connection?.Dispose();
                 }
             }
+
+            disposed = true;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        ~TcpConnectionFactory()
+        {
+            Dispose(false);
         }
 
         static class SocketConnectionTaskFactory
