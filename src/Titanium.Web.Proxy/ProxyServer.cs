@@ -157,7 +157,7 @@ namespace Titanium.Web.Proxy
         ///     Should we check for certificate revocation during SSL authentication to servers
         ///     Note: If enabled can reduce performance. Defaults to false.
         /// </summary>
-        public X509RevocationMode CheckCertificateRevocation { get; set; } = X509RevocationMode.NoCheck;
+        public X509RevocationMode CheckCertificateRevocation { get; set; }
 
         /// <summary>
         ///     Does this proxy uses the HTTP protocol 100 continue behaviour strictly?
@@ -243,7 +243,8 @@ namespace Titanium.Web.Proxy
         ///     List of supported Ssl versions.
         /// </summary>
 #pragma warning disable 618
-        public SslProtocols SupportedSslProtocols { get; set; } = SslProtocols.Ssl3 | SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12;
+        public SslProtocols SupportedSslProtocols { get; set; } = SslProtocols.Tls12 | SslProtocols.Tls11 | SslProtocols.Tls | SslProtocols.Ssl3;
+#pragma warning restore 618
 
         /// <summary>
         ///     The buffer pool used throughout this proxy instance.

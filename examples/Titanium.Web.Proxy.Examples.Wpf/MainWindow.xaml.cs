@@ -61,9 +61,9 @@ namespace Titanium.Web.Proxy.Examples.Wpf
 
             //increase the ThreadPool (for server prod)
             //proxyServer.ThreadPoolWorkerThread = Environment.ProcessorCount * 6;
-
+            proxyServer.CertificateManager.CertificateEngine = Network.CertificateEngine.BouncyCastleFast;
             ////if you need Load or Create Certificate now. ////// "true" if you need Enable===> Trust the RootCertificate used by this proxy server
-            //proxyServer.CertificateManager.EnsureRootCertificate(true);
+            proxyServer.CertificateManager.EnsureRootCertificate();
 
             ////or load directly certificate(As Administrator if need this)
             ////and At the same time chose path and password
@@ -76,6 +76,7 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             //proxyServer.AddEndPoint(explicitEndPoint);
             var transparentEndPoint = new TransparentProxyEndPoint(IPAddress.Any, 443, true)
             {
+                GenericCertificateName = "baidu.com",
             };
 
             proxyServer.AddEndPoint(transparentEndPoint);
@@ -170,8 +171,16 @@ namespace Titanium.Web.Proxy.Examples.Wpf
             //if (e.HttpClient.Request.HttpVersion.Major != 2) return;
             if (e.HttpClient.Request.RequestUri.AbsoluteUri.Contains("steamcommunity.com"))
             {
-                var ip = Dns.GetHostAddresses("steamcommunity-a.akamaihd.net");
+                var ip = Dns.GetHostAddresses("steamstore-a.akamaihd.net");
                 e.HttpClient.UpStreamEndPoint = new IPEndPoint(IPAddress.Parse(ip[0].ToString()), 443);
+                if (e.HttpClient.ConnectRequest?.ClientHelloInfo != null)
+                {
+                    e.HttpClient.ConnectRequest.ClientHelloInfo.Extensions.Remove("server_name");
+                }
+            }
+            if (e.HttpClient.Request.RequestUri.AbsoluteUri.Contains("discordapp.net"))
+            {
+                e.HttpClient.UpStreamEndPoint = new IPEndPoint(IPAddress.Parse("162.159.128.232"), 443);
                 if (e.HttpClient.ConnectRequest?.ClientHelloInfo != null)
                 {
                     e.HttpClient.ConnectRequest.ClientHelloInfo.Extensions.Remove("server_name");
