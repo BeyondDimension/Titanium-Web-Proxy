@@ -290,7 +290,7 @@ namespace Titanium.Web.Proxy.Network.Tcp
             bool prefetch, CancellationToken cancellationToken)
         {
             // deny connection to proxy end points to avoid infinite connection loop.
-            if (Server.ProxyEndPoints.Any(x => x.Port == remotePort) 
+            if (Server.ProxyEndPoints.Any(x => x.Port == remotePort)
                 && NetworkHelper.IsLocalIpAddress(remoteHostName))
             {
                 throw new Exception($"A client is making HTTP request to one of the listening ports of this proxy {remoteHostName}:{remotePort}");
@@ -415,7 +415,7 @@ retry:
                         }
 
                         Task connectTask;
-                            
+
                         if (socks)
                         {
                             if (externalProxy!.ProxyDnsRequests)
@@ -564,7 +564,8 @@ retry:
                         ApplicationProtocols = applicationProtocols,
                         TargetHost = remoteHostName,
                         ClientCertificates = null!,
-                        EnabledSslProtocols = enabledSslProtocols,
+                        //EnabledSslProtocols = SslProtocols.Tls | SslProtocols.Tls11 | SslProtocols.Tls12 | SslProtocols.Ssl3,
+                        EnabledSslProtocols = proxyServer.SupportedSslProtocols,
                         CertificateRevocationCheckMode = proxyServer.CheckCertificateRevocation
                     };
 
