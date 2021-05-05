@@ -564,8 +564,8 @@ retry:
                         ApplicationProtocols = applicationProtocols,
                         TargetHost = remoteHostName,
                         ClientCertificates = null!,
-                        //EnabledSslProtocols = proxyServer.SupportedSslProtocols,
-                        EnabledSslProtocols = enabledSslProtocols,
+                        EnabledSslProtocols = proxyServer.SupportedSslProtocols,
+                        //EnabledSslProtocols = enabledSslProtocols,
                         CertificateRevocationCheckMode = proxyServer.CheckCertificateRevocation
                     };
 
