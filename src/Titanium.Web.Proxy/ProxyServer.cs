@@ -157,7 +157,7 @@ namespace Titanium.Web.Proxy
         ///     Should we check for certificate revocation during SSL authentication to servers
         ///     Note: If enabled can reduce performance. Defaults to false.
         /// </summary>
-        public X509RevocationMode CheckCertificateRevocation { get; set; }
+        public X509RevocationMode CheckCertificateRevocation { get; set; } = X509RevocationMode.NoCheck;
 
         /// <summary>
         ///     Does this proxy uses the HTTP protocol 100 continue behaviour strictly?

@@ -37,7 +37,7 @@ namespace Titanium.Web.Proxy
 
             // By default
             // do not allow this client to communicate with unauthenticated servers.
-            return true;
+            return false;
         }
 
         /// <summary>
