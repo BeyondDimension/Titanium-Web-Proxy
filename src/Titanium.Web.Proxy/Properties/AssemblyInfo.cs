@@ -46,5 +46,7 @@ using System.Runtime.InteropServices;
 //      Revision
 //
 
+#if !UnifiedVersion
 [assembly: AssemblyVersion("1.0.1")]
 [assembly: AssemblyFileVersion("1.0.1")]
+#endif

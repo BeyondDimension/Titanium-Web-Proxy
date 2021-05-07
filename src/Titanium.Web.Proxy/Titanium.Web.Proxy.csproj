@@ -12,6 +12,10 @@
     <LangVersion>8.0</LangVersion>
   </PropertyGroup>
 
+  <PropertyGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
+    <DefineConstants>UnifiedVersion;$(DefineConstants)</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BrotliSharpLib" Version="0.3.3" />
     <PackageReference Include="Portable.BouncyCastle" Version="1.8.10" />
@@ -55,4 +59,12 @@
     </Compile>
   </ItemGroup>
 
+  <ItemGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
+    <Compile Include="..\..\..\..\src\Common.CoreLib\Properties\AssemblyInfo.Version.cs">
+      <Link>Properties\AssemblyInfo.Version.cs</Link>
+    </Compile>
+    <Compile Include="..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs">
+      <Link>Properties\ThisAssembly.Version.cs</Link>
+    </Compile>
+  </ItemGroup>
 </Project>
