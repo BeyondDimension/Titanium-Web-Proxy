@@ -553,12 +553,10 @@ retry:
                 if (isHttps)
                 {
                     var sslStream = new SslStream(stream, false,
-                        (sender, certificate, chain, sslPolicyErrors) =>
-                            proxyServer.ValidateServerCertificate(sender, sessionArgs, certificate, chain,
-                                sslPolicyErrors),
-                        (sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
-                            proxyServer.SelectClientCertificate(sender, sessionArgs, targetHost, localCertificates,
-                                remoteCertificate, acceptableIssuers));
+                        (a, b, c, d) => true);
+                        //(sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
+                        //    proxyServer.SelectClientCertificate(sender, sessionArgs, targetHost, localCertificates,
+                        //        remoteCertificate, acceptableIssuers));
                     stream = new HttpServerStream(proxyServer, sslStream, proxyServer.BufferPool, cancellationToken);
 
                     var options = new SslClientAuthenticationOptions
