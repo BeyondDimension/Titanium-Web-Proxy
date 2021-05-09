@@ -505,7 +505,7 @@ retry:
                         return null;
                     }
 
-                    throw new Exception($"Could not establish connection to {hostname}", lastException);
+                    throw new Exception($"Could not establish connection to {hostname} {upStreamEndPoint?.Address.ToString()}:{upStreamEndPoint?.Port.ToString()}", lastException);
                 }
 
                 if (sessionArgs != null)
