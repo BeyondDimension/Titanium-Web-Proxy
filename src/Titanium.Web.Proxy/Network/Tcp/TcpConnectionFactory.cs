@@ -394,14 +394,16 @@ retry:
                         }
                         else
                         {
-                            tcpServerSocket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
-                        }
-
-                        if (upStreamEndPoint != null)
-                        {
-                            ipAddress = upStreamEndPoint.Address;
-                            tcpServerSocket = new Socket(upStreamEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-                            //tcpServerSocket.Bind(upStreamEndPoint);
+                            if (upStreamEndPoint != null)
+                            {
+                                ipAddress = upStreamEndPoint.Address;
+                                tcpServerSocket = new Socket(upStreamEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+                                //tcpServerSocket.Bind(upStreamEndPoint);
+                            }
+                            else
+                            {
+                                tcpServerSocket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
+                            }
                         }
 
                         tcpServerSocket.NoDelay = proxyServer.NoDelay;
