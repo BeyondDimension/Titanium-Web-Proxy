@@ -746,15 +746,26 @@ namespace Titanium.Web.Proxy
         /// </summary>
         private void onAcceptConnection(IAsyncResult asyn)
         {
-            var endPoint = (ProxyEndPoint)asyn.AsyncState;
-
-            Socket? tcpClient = null;
-
             try
             {
+                var endPoint = (ProxyEndPoint)asyn.AsyncState;
+
+                Socket? tcpClient = null;
+
                 // based on end point type call appropriate request handlers
                 tcpClient = endPoint.Listener!.EndAcceptSocket(asyn);
                 tcpClient.NoDelay = NoDelay;
+
+                if (tcpClient != null)
+                {
+                    Task.Run(async () =>
+                    {
+                        await handleClient(tcpClient, endPoint);
+                    });
+                }
+
+                // Get the listener that handles the client request.
+                endPoint.Listener!.BeginAcceptSocket(onAcceptConnection, endPoint);
             }
             catch (ObjectDisposedException)
             {
@@ -767,17 +778,6 @@ namespace Titanium.Web.Proxy
             {
                 // Other errors are discarded to keep proxy running
             }
-
-            if (tcpClient != null)
-            {
-                Task.Run(async () =>
-                {
-                    await handleClient(tcpClient, endPoint);
-                });
-            }
-
-            // Get the listener that handles the client request.
-            endPoint.Listener!.BeginAcceptSocket(onAcceptConnection, endPoint);
         }
 
 

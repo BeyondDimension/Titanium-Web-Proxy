@@ -204,7 +204,7 @@ namespace Titanium.Web.Proxy.Http
             Request?.FinishSession();
             Response?.FinishSession();
 
-            Data.Clear();
+            Data?.Clear();
             UserData = null;
         }
     }
