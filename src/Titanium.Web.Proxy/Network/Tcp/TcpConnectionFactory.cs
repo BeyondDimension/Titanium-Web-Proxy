@@ -835,7 +835,14 @@ retry:
 
             static void endConnect(IAsyncResult asyncResult)
             {
-                ((Socket)asyncResult.AsyncState).EndConnect(asyncResult);
+                try
+                {
+                    ((Socket)asyncResult.AsyncState).EndConnect(asyncResult);
+                }
+                catch (ObjectDisposedException)
+                {
+
+                }
             }
 
             public static Task CreateTask(Socket socket, IPAddress ipAddress, int port)
