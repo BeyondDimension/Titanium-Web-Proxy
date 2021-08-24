@@ -200,21 +200,24 @@ namespace Titanium.Web.Proxy.Helpers
         /// <returns></returns>
         private static HttpSystemProxyValue? parseProxyValue(string value)
         {
-            string tmp = Regex.Replace(value, @"\s+", " ").Trim();
-
-            int equalsIndex = tmp.IndexOf("=", StringComparison.InvariantCulture);
-            if (equalsIndex >= 0)
+            try
             {
-                string protocolTypeStr = tmp.Substring(0, equalsIndex);
-                var protocolType = ParseProtocolType(protocolTypeStr);
+                string tmp = Regex.Replace(value, @"\s+", " ").Trim();
 
-                if (protocolType.HasValue)
+                int equalsIndex = tmp.IndexOf("=", StringComparison.InvariantCulture);
+                if (equalsIndex >= 0)
                 {
-                    var endPointParts = tmp.Substring(equalsIndex + 1).Split(':');
-                    return new HttpSystemProxyValue(endPointParts[0], int.Parse(endPointParts[1]), protocolType.Value);
+                    string protocolTypeStr = tmp.Substring(0, equalsIndex);
+                    var protocolType = ParseProtocolType(protocolTypeStr);
+
+                    if (protocolType.HasValue)
+                    {
+                        var endPointParts = tmp.Substring(equalsIndex + 1).Split(':');
+                        return new HttpSystemProxyValue(endPointParts[0], int.Parse(endPointParts[1]), protocolType.Value);
+                    }
                 }
             }
-
+            catch { }
             return null;
         }
     }

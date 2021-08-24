@@ -396,7 +396,9 @@ namespace Titanium.Web.Proxy
             if (ProxyEndPoints.Any(x =>
                 x.IpAddress.Equals(endPoint.IpAddress) && endPoint.Port != 0 && x.Port == endPoint.Port))
             {
-                throw new Exception("Cannot add another endpoint to same port & ip address");
+                //throw new Exception("Cannot add another endpoint to same port & ip address");
+                exceptionFunc?.Invoke(new Exception("Cannot add another endpoint to same port & ip address"));
+                return;
             }
 
             ProxyEndPoints.Add(endPoint);
