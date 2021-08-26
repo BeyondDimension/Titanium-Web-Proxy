@@ -581,9 +581,12 @@ retry:
                         CertificateRevocationCheckMode = proxyServer.CheckCertificateRevocation
                     };
 
-                    if (upStreamEndPoint != null)
+                    if (!socks)
                     {
-                        options.TargetHost = upStreamEndPoint.Address.ToString();
+                        if (upStreamEndPoint != null)
+                        {
+                            options.TargetHost = upStreamEndPoint.Address.ToString();
+                        }
                     }
 
                     await sslStream.AuthenticateAsClientAsync(options, cancellationToken);
