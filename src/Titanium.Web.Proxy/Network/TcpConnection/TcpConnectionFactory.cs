@@ -292,20 +292,26 @@ namespace Titanium.Web.Proxy.Network.Tcp
             ProxyServer proxyServer, SessionEventArgsBase sessionArgs, IPEndPoint? upStreamEndPoint, IExternalProxy? externalProxy, string cacheKey,
             bool prefetch, CancellationToken cancellationToken)
         {
-            // deny connection to proxy end points to avoid infinite connection loop.
-            if (Server.ProxyEndPoints.Any(x => x.Port == remotePort)
-                && NetworkHelper.IsLocalIpAddress(remoteHostName))
+            if (upStreamEndPoint == null)
             {
-                throw new Exception($"A client is making HTTP request to one of the listening ports of this proxy {remoteHostName}:{remotePort}");
-            }
-
-            if (externalProxy != null)
-            {
-                if (Server.ProxyEndPoints.Any(x => x.Port == externalProxy.Port)
-                    && NetworkHelper.IsLocalIpAddress(externalProxy.HostName))
+                // deny connection to proxy end points to avoid infinite connection loop.
+                if (Server.ProxyEndPoints.Any(x => x.Port == remotePort) && NetworkHelper.IsLocalIpAddress(remoteHostName))
                 {
-                    throw new Exception($"A client is making HTTP request via external proxy to one of the listening ports of this proxy {remoteHostName}:{remotePort}");
+                    throw new Exception($"A client is making HTTP request to one of the listening ports of this proxy {remoteHostName}:{remotePort}");
                 }
+
+                if (externalProxy != null)
+                {
+                    if (Server.ProxyEndPoints.Any(x => x.Port == externalProxy.Port)
+                        && NetworkHelper.IsLocalIpAddress(externalProxy.HostName))
+                    {
+                        throw new Exception($"A client is making HTTP request via external proxy to one of the listening ports of this proxy {remoteHostName}:{remotePort}");
+                    }
+                }
+            }
+            else if (IPAddress.IsLoopback(upStreamEndPoint.Address))
+            {
+                throw new Exception($"A client is making HTTP request to one of the listening ports of this proxy {upStreamEndPoint.Address}:{upStreamEndPoint.Port}");
             }
 
             if (isHttps && sslProtocol == SslProtocols.None)
