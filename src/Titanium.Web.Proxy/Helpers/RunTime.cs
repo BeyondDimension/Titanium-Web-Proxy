@@ -11,58 +11,18 @@ namespace Titanium.Web.Proxy.Helpers
     /// </summary>
     public static class RunTime
     {
-        private static readonly Lazy<bool> isRunningOnMono = new Lazy<bool>(() => Type.GetType("Mono.Runtime") != null);
-
-#if NET45 || NET461
-        /// <summary>
-        /// cache for Windows platform check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnWindows => true;
-
-        /// <summary>
-        ///     cache for mono runtime check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnLinux => false;
-
-        /// <summary>
-        ///     cache for mac runtime check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnMac => false;
-#else
-        /// <summary>
-        /// cache for Windows platform check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-
-        /// <summary>
-        ///     cache for mono runtime check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnLinux => RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-
-        /// <summary>
-        ///     cache for mac runtime check
-        /// </summary>
-        /// <returns></returns>
-        private static bool isRunningOnMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
-#endif
-
         /// <summary>
         ///     Is running on Mono?
         /// </summary>
-        internal static bool IsRunningOnMono => isRunningOnMono.Value;
+        internal static bool IsRunningOnMono => OperatingSystem2.IsRunningOnMono;
 
-        public static bool IsLinux => isRunningOnLinux;
+        public static bool IsLinux => OperatingSystem2.IsLinux;
 
-        public static bool IsWindows => isRunningOnWindows;
+        public static bool IsWindows => OperatingSystem2.IsWindows;
 
-        public static bool IsUwpOnWindows => IsWindows && UwpHelper.IsRunningAsUwp();
+        public static bool IsUwpOnWindows => IsWindows && OperatingSystem2.IsRunningAsUwp;
 
-        public static bool IsMac => isRunningOnMac;
+        public static bool IsMac => OperatingSystem2.IsMacOS;
 
         /// <summary>
         /// Is socket reuse available to use?
@@ -117,45 +77,6 @@ namespace Titanium.Web.Proxy.Helpers
                 // store the result in our static object so we don't have to be bothered going through all this more than once
                 _isSocketReuseAvailable = false;
                 return false;
-            }
-        }
-
-        // https://github.com/qmatteoq/DesktopBridgeHelpers/blob/master/DesktopBridge.Helpers/Helpers.cs
-        private class UwpHelper
-        {
-            const long APPMODEL_ERROR_NO_PACKAGE = 15700L;
-
-            [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-            static extern int GetCurrentPackageFullName(ref int packageFullNameLength, StringBuilder packageFullName);
-
-            internal static bool IsRunningAsUwp()
-            {
-                if (isWindows7OrLower)
-                {
-                    return false;
-                }
-                else
-                {
-                    int length = 0;
-                    var sb = new StringBuilder(0);
-                    int result = GetCurrentPackageFullName(ref length, sb);
-
-                    sb = new StringBuilder(length);
-                    result = GetCurrentPackageFullName(ref length, sb);
-
-                    return result != APPMODEL_ERROR_NO_PACKAGE;
-                }
-            }
-
-            private static bool isWindows7OrLower
-            {
-                get
-                {
-                    int versionMajor = Environment.OSVersion.Version.Major;
-                    int versionMinor = Environment.OSVersion.Version.Minor;
-                    double version = versionMajor + (double)versionMinor / 10;
-                    return version <= 6.1;
-                }
             }
         }
     }
