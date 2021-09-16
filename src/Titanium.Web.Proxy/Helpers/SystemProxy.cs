@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+#if !__ANDROID__ || __IOS__
 using Microsoft.Win32;
+#endif
 using Titanium.Web.Proxy.Models;
 
 // Helper classes for setting system proxy settings
@@ -41,6 +43,7 @@ namespace Titanium.Web.Proxy.Helpers
         }
     }
 
+#if !__ANDROID__ || __IOS__
     /// <summary>
     ///     Manage system proxy settings
     /// </summary>
@@ -350,4 +353,38 @@ namespace Titanium.Web.Proxy.Helpers
             return Registry.CurrentUser?.OpenSubKey(regKeyInternetSettings, true);
         }
     }
+#else
+    internal class SystemProxyManager
+    {
+        public SystemProxyManager()
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public void RestoreOriginalSettings()
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public void RemoveProxy(ProxyProtocolType _, bool __ = true)
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public void DisableAllProxy()
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public ProxyInfo? GetProxyInfoFromRegistry()
+        {
+            throw new PlatformNotSupportedException();
+        }
+
+        public void SetProxy(string _, int __, ProxyProtocolType ___)
+        {
+            throw new PlatformNotSupportedException();
+        }
+    }
+#endif
 }

@@ -101,10 +101,12 @@ namespace Titanium.Web.Proxy
             BufferPool = new DefaultBufferPool();
             ProxyEndPoints = new List<ProxyEndPoint>();
             tcpConnectionFactory = new TcpConnectionFactory(this);
+#if !__ANDROID__ || __IOS__
             if (RunTime.IsWindows && !RunTime.IsUwpOnWindows)
             {
                 systemProxySettingsManager = new SystemProxyManager();
             }
+#endif
 
             CertificateManager = new CertificateManager(rootCertificateName, rootCertificateIssuerName,
                 userTrustRootCertificate, machineTrustRootCertificate, trustRootCertificateAsAdmin, ExceptionFunc);

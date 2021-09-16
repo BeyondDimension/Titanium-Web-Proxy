@@ -1,7 +1,7 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="MSBuild.Sdk.Extras">
 
   <PropertyGroup>
-    <TargetFrameworks>netstandard2.1;netstandard2.0;net45;net461;</TargetFrameworks>
+    <TargetFrameworks>netstandard2.1;net6.0;MonoAndroid11.0</TargetFrameworks>
     <RootNamespace>Titanium.Web.Proxy</RootNamespace>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <SignAssembly>True</SignAssembly>
@@ -9,7 +9,7 @@
     <DelaySign>False</DelaySign>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <Nullable>enable</Nullable>
-    <LangVersion>8.0</LangVersion>
+    <LangVersion>9.0</LangVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
@@ -28,7 +28,7 @@
     <PackageReference Include="System.Threading.Tasks.Extensions" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net45'">
+  <ItemGroup Condition=" $(TargetFramework.StartsWith('netstandard')) ">
     <PackageReference Include="Microsoft.Win32.Registry" />
     <PackageReference Include="System.Security.Principal.Windows" />
   </ItemGroup>
