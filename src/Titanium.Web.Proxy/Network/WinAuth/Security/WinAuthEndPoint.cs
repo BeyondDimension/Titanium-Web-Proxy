@@ -33,16 +33,21 @@ namespace Titanium.Web.Proxy.Network.WinAuth.Security
             {
                 var state = new State();
 
-                int result = AcquireCredentialsHandle(
-                    WindowsIdentity.GetCurrent().Name,
-                    authScheme,
-                    SecurityCredentialsOutbound,
-                    IntPtr.Zero,
-                    IntPtr.Zero,
-                    0,
-                    IntPtr.Zero,
-                    ref state.Credentials,
-                    ref NewLifeTime);
+                int result;
+#if MONOANDROID
+                return null;
+#else
+                result = AcquireCredentialsHandle(
+                                WindowsIdentity.GetCurrent().Name,
+                                authScheme,
+                                SecurityCredentialsOutbound,
+                                IntPtr.Zero,
+                                IntPtr.Zero,
+                                0,
+                                IntPtr.Zero,
+                                ref state.Credentials,
+                                ref NewLifeTime);
+#endif
 
                 if (result != SuccessfulResult)
                 {
@@ -139,7 +144,7 @@ namespace Titanium.Web.Proxy.Network.WinAuth.Security
                 if (clientToken.cBuffers == 1)
                 {
                     var thisSecBuffer = (SecurityBuffer)Marshal.PtrToStructure(clientToken.pBuffers, typeof(SecurityBuffer));
-                   disposeSecBuffer(thisSecBuffer);
+                    disposeSecBuffer(thisSecBuffer);
                 }
                 else
                 {

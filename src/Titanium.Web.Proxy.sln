@@ -10,6 +10,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Documentation", "Documentat
 		..\LICENSE = ..\LICENSE
 		..\PULL_REQUEST_TEMPLATE.md = ..\PULL_REQUEST_TEMPLATE.md
 		..\README.md = ..\README.md
+		..\Directory.Build.props= ..\Directory.Build.props
+		..\Directory.Packages.props= ..\Directory.Packages.props
+		..\global.json= ..\global.json
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{AC9AE37A-3059-4FDB-9A5C-363AD86F2EEF}"
