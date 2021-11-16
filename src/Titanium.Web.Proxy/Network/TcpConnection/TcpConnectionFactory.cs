@@ -468,7 +468,7 @@ retry:
 
                             try
                             {
-#if NET45
+#if NET451
                                 tcpServerSocket?.Close();
 #else
                                 tcpServerSocket?.Dispose();
@@ -489,7 +489,7 @@ retry:
                     {
                         // dispose the current TcpClient and try the next address
                         lastException = e;
-#if NET45
+#if NET451
                         tcpServerSocket?.Close();
 #else
                         tcpServerSocket?.Dispose();

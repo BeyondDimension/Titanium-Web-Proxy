@@ -139,6 +139,11 @@ namespace Titanium.Web.Proxy
         public bool ForwardToUpstreamGateway { get; set; }
 
         /// <summary>
+        /// If set, the upstream proxy will be detected by a script that will be loaded from the provided Uri
+        /// </summary>
+        public Uri UpstreamProxyConfigurationScript { get; set; }
+
+        /// <summary>
         ///     Enable disable Windows Authentication (NTLM/Kerberos).
         ///     Note: NTLM/Kerberos will always send local credentials of current user
         ///     running the proxy process. This is because a man
@@ -590,7 +595,11 @@ namespace Titanium.Web.Proxy
         /// <summary>
         ///     Start this proxy server instance.
         /// </summary>
-        public void Start()
+        /// <param name="changeSystemProxySettings"> 
+        ///     Whether or not clear any system proxy settings which is pointing to our own endpoint (causing a cycle).
+        ///     E.g due to ungracious proxy shutdown before.
+        /// </param>
+        public void Start(bool changeSystemProxySettings = true)
         {
             if (ProxyRunning)
             {
@@ -604,9 +613,7 @@ namespace Titanium.Web.Proxy
                 CertificateManager.EnsureRootCertificate();
             }
 
-            // clear any system proxy settings which is pointing to our own endpoint (causing a cycle)
-            // due to ungracious proxy shutdown before or something else
-            if (systemProxySettingsManager != null && RunTime.IsWindows && !RunTime.IsUwpOnWindows)
+            if (changeSystemProxySettings && systemProxySettingsManager != null && RunTime.IsWindows && !RunTime.IsUwpOnWindows)
             {
                 var proxyInfo = systemProxySettingsManager.GetProxyInfoFromRegistry();
                 if (proxyInfo?.Proxies != null)
@@ -630,9 +637,17 @@ namespace Titanium.Web.Proxy
 
             if (ForwardToUpstreamGateway && GetCustomUpStreamProxyFunc == null && systemProxySettingsManager != null)
             {
-                // Use WinHttp to handle PAC/WAPD scripts.
                 systemProxyResolver = new WinHttpWebProxyFinder();
-                systemProxyResolver.LoadFromIE();
+                if (UpstreamProxyConfigurationScript != null)
+                {
+                    //Use the provided proxy configuration script
+                    systemProxyResolver.UsePacFile(UpstreamProxyConfigurationScript);
+                }
+                else
+                {
+                    // Use WinHttp to handle PAC/WAPD scripts.
+                    systemProxyResolver.LoadFromIE();
+                }
 
                 GetCustomUpStreamProxyFunc = getSystemUpStreamProxy;
             }
