@@ -78,7 +78,7 @@ namespace Titanium.Web.Proxy.Http
         {
             var encoding = HttpHeader.Encoding;
 
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
             var buf = ArrayPool<byte>.Shared.Rent(encoding.GetMaxByteCount(str.Length));
             var span = new Span<byte>(buf);
 

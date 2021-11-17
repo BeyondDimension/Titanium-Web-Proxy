@@ -1,6 +1,9 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
+#if __XAMARIN_ANDROID_v1_0__
+using BrotliSharpLib;
+#endif
 
 namespace Titanium.Web.Proxy.Compression
 {
@@ -18,7 +21,7 @@ namespace Titanium.Web.Proxy.Compression
                 case HttpCompression.Deflate:
                     return new DeflateStream(stream, CompressionMode.Decompress, leaveOpen);
                 case HttpCompression.Brotli:
-                    return new BrotliSharpLib.BrotliStream(stream, CompressionMode.Decompress, leaveOpen);
+                    return new BrotliStream(stream, CompressionMode.Decompress, leaveOpen);
                 default:
                     throw new Exception($"Unsupported decompression mode: {type}");
             }

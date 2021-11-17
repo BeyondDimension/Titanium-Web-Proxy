@@ -17,9 +17,14 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="BrotliSharpLib" />
+        <!--https://docs.microsoft.com/en-us/dotnet/api/system.io.compression.brotlistream?view=netstandard-2.1#applies-to-->
+        <!--<PackageReference Include="BrotliSharpLib" />-->
         <PackageReference Include="Portable.BouncyCastle" />
         <PackageReference Include="OperatingSystem2" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$(TargetFramework.StartsWith('MonoAndroid'))">
+        <PackageReference Include="BrotliSharpLib" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.1'">

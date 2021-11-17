@@ -1,4 +1,4 @@
-﻿#if NETSTANDARD2_1
+﻿#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
 /*
  * Copyright 2014 Twitter, Inc
  * This file is a derivative work modified by Ringo Leese

@@ -206,7 +206,7 @@ namespace Titanium.Web.Proxy
                             options.CertificateRevocationCheckMode = X509RevocationMode.NoCheck;
                             await sslStream.AuthenticateAsServerAsync(options, cancellationToken);
 
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
                             clientStream.Connection.NegotiatedApplicationProtocol = sslStream.NegotiatedApplicationProtocol;
 #endif
 
@@ -346,7 +346,7 @@ namespace Titanium.Web.Proxy
                                                         true, false, cancellationToken))!;
                         try
                         {
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
                             var connectionPreface = new ReadOnlyMemory<byte>(Http2Helper.ConnectionPreface);
                             await connection.Stream.WriteAsync(connectionPreface, cancellationToken);
                             await Http2Helper.SendHttp2(clientStream, connection.Stream,

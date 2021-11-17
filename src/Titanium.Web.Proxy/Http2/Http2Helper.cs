@@ -1,4 +1,4 @@
-﻿#if NETSTANDARD2_1
+﻿#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
 using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;

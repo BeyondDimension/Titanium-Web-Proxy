@@ -297,7 +297,7 @@ namespace Titanium.Web.Proxy.Helpers
         /// less than the requested number, or it can be 0 (zero)
         /// if the end of the stream has been reached.
         /// </returns>
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
         public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
 #else
         public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
@@ -1250,7 +1250,7 @@ namespace Titanium.Web.Proxy.Helpers
             }
         }
 
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
         /// <summary>
         ///     Asynchronously writes a sequence of bytes to the current stream, advances the current position within this stream by the number of bytes written, and monitors cancellation requests.
         /// </summary>

@@ -151,7 +151,7 @@ namespace Titanium.Web.Proxy.Http
             int secondSpace = httpStatus.IndexOf(' ', firstSpace + 1);
             if (secondSpace != -1)
             {
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
                 statusCode = int.Parse(httpStatus.AsSpan(firstSpace + 1, secondSpace - firstSpace - 1));
 #else
                 statusCode = int.Parse(httpStatus.AsSpan(firstSpace + 1, secondSpace - firstSpace - 1).ToString());
@@ -160,7 +160,7 @@ namespace Titanium.Web.Proxy.Http
             }
             else
             {
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
                 statusCode = int.Parse(httpStatus.AsSpan(firstSpace + 1));
 #else
                 statusCode = int.Parse(httpStatus.AsSpan(firstSpace + 1).ToString());

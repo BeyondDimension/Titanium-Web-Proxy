@@ -18,7 +18,7 @@ namespace Titanium.Web.Proxy.Models
         /// </summary>
         public const int HttpHeaderOverhead = 32;
 
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
         internal static Version VersionUnknown => HttpVersion.Unknown;
 #else
         internal static Version VersionUnknown { get; } = new Version(0, 0);
@@ -28,7 +28,7 @@ namespace Titanium.Web.Proxy.Models
 
         internal static Version Version11 => HttpVersion.Version11;
 
-#if NETSTANDARD2_1
+#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
         internal static Version Version20 => HttpVersion.Version20;
 #else
         internal static Version Version20 { get; } = new Version(2, 0);
