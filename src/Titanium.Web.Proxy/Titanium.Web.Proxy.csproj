@@ -9,7 +9,7 @@
         <DelaySign>False</DelaySign>
         <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
         <Nullable>enable</Nullable>
-        <LangVersion>9.0</LangVersion>
+        <LangVersion>10.0</LangVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
@@ -27,13 +27,13 @@
         <PackageReference Include="BrotliSharpLib" />
     </ItemGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.1'">
+    <!--<ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.1'">
         <PackageReference Include="System.Buffers" />
         <PackageReference Include="System.Memory" />
         <PackageReference Include="System.Threading.Tasks.Extensions" />
-    </ItemGroup>
+    </ItemGroup>-->
 
-    <ItemGroup Condition="'$(TargetFramework)' != 'net45'">
+    <ItemGroup Condition="$(TargetFramework.StartsWith('netstandard'))">
         <PackageReference Include="Microsoft.Win32.Registry"/>
         <PackageReference Include="System.Security.Principal.Windows"/>
     </ItemGroup>
