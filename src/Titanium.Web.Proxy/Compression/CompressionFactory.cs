@@ -1,9 +1,6 @@
 ﻿using System;
 using System.IO;
 using System.IO.Compression;
-#if __XAMARIN_ANDROID_v1_0__
-using BrotliSharpLib;
-#endif
 
 namespace Titanium.Web.Proxy.Compression
 {
