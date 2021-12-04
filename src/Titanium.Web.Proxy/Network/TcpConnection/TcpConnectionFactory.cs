@@ -563,11 +563,13 @@ retry:
 
                 if (isHttps)
                 {
-                    var sslStream = new SslStream(stream, false,
-                        (a, b, c, d) => true);
-                        //(sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
-                        //    proxyServer.SelectClientCertificate(sender, sessionArgs, targetHost, localCertificates,
-                        //        remoteCertificate, acceptableIssuers));
+                    var sslStream = new SslStream(stream, false, (a, b, c, d) => true);
+                    //(sender, certificate, chain, sslPolicyErrors) =>
+                    //    proxyServer.ValidateServerCertificate(sender, sessionArgs, certificate, chain,
+                    //        sslPolicyErrors),
+                    //(sender, targetHost, localCertificates, remoteCertificate, acceptableIssuers) =>
+                    //    proxyServer.SelectClientCertificate(sender, sessionArgs, targetHost, localCertificates,
+                    //        remoteCertificate, acceptableIssuers));
                     stream = new HttpServerStream(proxyServer, sslStream, proxyServer.BufferPool, cancellationToken);
 
                     var options = new SslClientAuthenticationOptions
@@ -577,7 +579,6 @@ retry:
                         ClientCertificates = null!,
                         //EnabledSslProtocols = proxyServer.SupportedSslProtocols,
                         EnabledSslProtocols = enabledSslProtocols,
-                        //RemoteCertificateValidationCallback = (a, b, c, d) => true,
                         CertificateRevocationCheckMode = proxyServer.CheckCertificateRevocation
                     };
 
