@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Security;
 using System.Security.Authentication;
@@ -76,6 +77,23 @@ namespace Titanium.Web.Proxy.Extensions
                 options.EnabledSslProtocols, options.CertificateRevocationCheckMode != X509RevocationMode.NoCheck);
         }
 #endif
+
+        internal static bool TryGetNegotiatedApplicationProtocol(this SslStream sslStream, out SslApplicationProtocol value)
+        {
+            try
+            {
+                value = sslStream.NegotiatedApplicationProtocol;
+                return true;
+            }
+            catch (PlatformNotSupportedException)
+            {
+                value = default;
+                return false;
+                // System.PlatformNotSupportedException: https://github.com/mono/mono/issues/12880
+                //       at System.Net.Security.SslStream.get_NegotiatedApplicationProtocol () [0x00000] in /Users/builder/jenkins/workspace/archive-mono/2020-// 02/android/release/mcs/class/System/System.Net.Security/SslStream.cs:387 
+                //         at (wrapper remoting-invoke-with-check) System.Net.Security.SslStream.get_NegotiatedApplicationProtocol()
+            }
+        }
     }
 }
 

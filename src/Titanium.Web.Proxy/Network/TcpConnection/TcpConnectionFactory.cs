@@ -592,7 +592,10 @@ retry:
 
                     await sslStream.AuthenticateAsClientAsync(options, cancellationToken);
 #if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
-                    negotiatedApplicationProtocol = sslStream.NegotiatedApplicationProtocol;
+                    if (sslStream.TryGetNegotiatedApplicationProtocol(out var sslNAP))
+                    {
+                        negotiatedApplicationProtocol = sslNAP;
+                    }
 #endif
 
                     if (sessionArgs != null)

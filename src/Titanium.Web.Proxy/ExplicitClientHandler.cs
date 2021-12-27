@@ -207,7 +207,10 @@ namespace Titanium.Web.Proxy
                             await sslStream.AuthenticateAsServerAsync(options, cancellationToken);
 
 #if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
-                            clientStream.Connection.NegotiatedApplicationProtocol = sslStream.NegotiatedApplicationProtocol;
+                            if (sslStream.TryGetNegotiatedApplicationProtocol(out var sslNAP))
+                            {
+                                clientStream.Connection.NegotiatedApplicationProtocol = sslNAP;
+                            }
 #endif
 
                             // HTTPS server created - we can now decrypt the client's traffic
