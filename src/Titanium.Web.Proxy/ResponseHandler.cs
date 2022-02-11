@@ -92,8 +92,13 @@ namespace Titanium.Web.Proxy
 
                 // clear current response
                 await args.ClearResponse(cancellationToken);
-                await handleHttpSessionRequest(args, null, args.ClientConnection.NegotiatedApplicationProtocol,
+                var result = await handleHttpSessionRequest(args, null, args.ClientConnection.NegotiatedApplicationProtocol,
                             cancellationToken, args.CancellationTokenSource);
+                if (result.LatestConnection != null)
+                {
+                    args.HttpClient.SetConnection(result.LatestConnection);
+                }
+
                 return;
             }
 
@@ -120,6 +125,8 @@ namespace Titanium.Web.Proxy
                     await serverStream.CopyBodyAsync(response, false, clientStream, TransformationMode.None,
                         false, args, cancellationToken);
                 }
+
+                response.IsBodyReceived = true;
             }
 
             args.TimeLine["Response Sent"] = DateTime.UtcNow;

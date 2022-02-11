@@ -105,7 +105,10 @@ namespace Titanium.Web.Proxy.Http
             {
                 if (value >= 0)
                 {
-                    Headers.SetOrAddHeaderValue(KnownHeaders.ContentLength, value.ToString());
+                    Headers.SetOrAddHeaderValue(
+                        HttpVersion >= HttpHeader.Version20
+                            ? KnownHeaders.ContentLengthHttp2
+                            : KnownHeaders.ContentLength, value.ToString());
                     IsChunked = false;
                 }
                 else
@@ -210,6 +213,8 @@ namespace Titanium.Web.Proxy.Http
         internal bool Locked { get; set; }
 
         internal bool BodyAvailable => BodyInternal != null;
+
+        internal bool IsBodyReceived { get; set; }
 
         internal bool IsBodySent { get; set; }
 

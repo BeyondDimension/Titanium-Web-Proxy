@@ -11,6 +11,7 @@ using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Extensions;
 using Titanium.Web.Proxy.Helpers;
 using Titanium.Web.Proxy.Helpers.WinHttp;
+using Titanium.Web.Proxy.Http;
 using Titanium.Web.Proxy.Models;
 using Titanium.Web.Proxy.Network;
 using Titanium.Web.Proxy.Network.Tcp;
@@ -33,12 +34,6 @@ namespace Titanium.Web.Proxy
 
         internal static ByteString UriSchemeHttp8 = (ByteString)UriSchemeHttp;
         internal static ByteString UriSchemeHttps8 = (ByteString)UriSchemeHttps;
-
-
-        /// <summary>
-        ///     A default exception log func.
-        /// </summary>
-        private readonly ExceptionHandler defaultExceptionFunc = e => { };
 
         /// <summary>
         ///     Backing field for exposed public property.
@@ -302,9 +297,9 @@ namespace Titanium.Web.Proxy
         /// <summary>
         ///     Callback for error events in this proxy instance.
         /// </summary>
-        public ExceptionHandler ExceptionFunc
+        public ExceptionHandler? ExceptionFunc
         {
-            get => exceptionFunc ?? defaultExceptionFunc;
+            get => exceptionFunc;
             set
             {
                 exceptionFunc = value;
@@ -388,6 +383,11 @@ namespace Titanium.Web.Proxy
         ///     Customize TcpClient used for server connection upon create.
         /// </summary>
         public event AsyncEventHandler<Socket>? OnServerConnectionCreate;
+
+        /// <summary>
+        ///     Intercept connect request sent to upstream proxy.
+        /// </summary>
+        public event AsyncEventHandler<ConnectRequest>? BeforeUpStreamConnectRequest;
 
         /// <summary>
         /// Customize the minimum ThreadPool size (increase it on a server)
@@ -864,9 +864,9 @@ namespace Titanium.Web.Proxy
         /// </summary>
         /// <param name="clientStream">The client stream.</param>
         /// <param name="exception">The exception.</param>
-        private void onException(HttpClientStream clientStream, Exception exception)
+        private void onException(HttpClientStream? clientStream, Exception exception)
         {
-            ExceptionFunc(exception);
+            ExceptionFunc?.Invoke(exception);
         }
 
         /// <summary>
@@ -893,7 +893,14 @@ namespace Titanium.Web.Proxy
                 Interlocked.Decrement(ref clientConnectionCount);
             }
 
-            ClientConnectionCountChanged?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                ClientConnectionCountChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                onException(null, ex);
+            }
         }
 
         /// <summary>
@@ -911,7 +918,14 @@ namespace Titanium.Web.Proxy
                 Interlocked.Decrement(ref serverConnectionCount);
             }
 
-            ServerConnectionCountChanged?.Invoke(this, EventArgs.Empty);
+            try
+            {
+                ServerConnectionCountChanged?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                onException(null, ex);
+            }
         }
 
         /// <summary>
@@ -963,11 +977,21 @@ namespace Titanium.Web.Proxy
 
             if (ProxyRunning)
             {
-                Stop();
+                try
+                {
+                    Stop();
+                }
+                catch
+                {
+                    // ignore
+                }
             }
 
-            CertificateManager?.Dispose();
-            BufferPool?.Dispose();
+            if (disposing)
+            {
+                CertificateManager?.Dispose();
+                BufferPool?.Dispose();
+            }
         }
 
         public void Dispose()
