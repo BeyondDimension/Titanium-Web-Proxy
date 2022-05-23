@@ -107,15 +107,15 @@ namespace Titanium.Web.Proxy.Network
         {
             if (rootCertificatePath == null)
             {
-                if (RunTime.IsUwpOnWindows)
+                if (RunTime.IsUwpOnWindows())
                 {
                     rootCertificatePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
                 }
-                else if (RunTime.IsLinux)
+                else if (RunTime.IsLinux())
                 {
                     rootCertificatePath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 }
-                else if (RunTime.IsMac)
+                else if (RunTime.IsMac())
                 {
                     rootCertificatePath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
                 }

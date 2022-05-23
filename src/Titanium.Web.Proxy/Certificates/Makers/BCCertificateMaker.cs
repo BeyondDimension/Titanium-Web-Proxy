@@ -170,7 +170,7 @@ namespace Titanium.Web.Proxy.Network.Certificate
             const string password = "password";
             Pkcs12Store store;
 
-            if (RunTime.IsRunningOnMono)
+            if (RunTime.IsRunningOnMono())
             {
                 var builder = new Pkcs12StoreBuilder();
                 builder.SetUseDerEncoding(true);

@@ -180,7 +180,7 @@ namespace Titanium.Web.Proxy.Network
             set
             {
                 // For Mono (or Non-Windows) only Bouncy Castle is supported
-                if (!RunTime.IsWindows)
+                if (!RunTime.IsWindows())
                 {
                     value = CertificateEngine.BouncyCastle;
                 }
@@ -769,7 +769,7 @@ namespace Titanium.Web.Proxy.Network
         /// <returns>True if success.</returns>
         public bool TrustRootCertificateAsAdmin(bool machineTrusted = false)
         {
-            if (!RunTime.IsWindows)
+            if (!RunTime.IsWindows())
             {
                 return false;
             }
@@ -912,7 +912,7 @@ namespace Titanium.Web.Proxy.Network
         /// <returns>Should also remove from machine store?</returns>
         public bool RemoveTrustedRootCertificateAsAdmin(bool machineTrusted = false)
         {
-            if (!RunTime.IsWindows)
+            if (!RunTime.IsWindows())
             {
                 return false;
             }

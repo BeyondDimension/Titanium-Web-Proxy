@@ -97,7 +97,7 @@ namespace Titanium.Web.Proxy
             ProxyEndPoints = new List<ProxyEndPoint>();
             tcpConnectionFactory = new TcpConnectionFactory(this);
 #if !__ANDROID__ || __IOS__
-            if (RunTime.IsWindows && !RunTime.IsUwpOnWindows)
+            if (RunTime.IsWindows() && !RunTime.IsUwpOnWindows())
             {
                 systemProxySettingsManager = new SystemProxyManager();
             }
@@ -613,7 +613,7 @@ namespace Titanium.Web.Proxy
                 CertificateManager.EnsureRootCertificate();
             }
 
-            if (changeSystemProxySettings && systemProxySettingsManager != null && RunTime.IsWindows && !RunTime.IsUwpOnWindows)
+            if (changeSystemProxySettings && systemProxySettingsManager != null && RunTime.IsWindows() && !RunTime.IsUwpOnWindows())
             {
                 var proxyInfo = systemProxySettingsManager.GetProxyInfoFromRegistry();
                 if (proxyInfo?.Proxies != null)

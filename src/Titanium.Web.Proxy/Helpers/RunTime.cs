@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using System.Text;
@@ -14,15 +15,20 @@ namespace Titanium.Web.Proxy.Helpers
         /// <summary>
         ///     Is running on Mono?
         /// </summary>
-        internal static bool IsRunningOnMono => OperatingSystem2.IsRunningOnMono;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static bool IsRunningOnMono() => OperatingSystem2.IsRunningOnMono();
 
-        public static bool IsLinux => OperatingSystem2.IsLinux;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsLinux() => OperatingSystem2.IsLinux();
 
-        public static bool IsWindows => OperatingSystem2.IsWindows;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsWindows() => OperatingSystem2.IsWindows();
 
-        public static bool IsUwpOnWindows => IsWindows && OperatingSystem2.IsRunningAsUwp;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsUwpOnWindows() => OperatingSystem2.IsWindows() && OperatingSystem2.IsRunningAsUwp();
 
-        public static bool IsMac => OperatingSystem2.IsMacOS;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsMac() => OperatingSystem2.IsMacOS();
 
         /// <summary>
         /// Is socket reuse available to use?
@@ -39,7 +45,7 @@ namespace Titanium.Web.Proxy.Helpers
 
             try
             {
-                if (IsWindows)
+                if (IsWindows())
                 {
                     // since we are on windows just return true
                     // store the result in our static object so we don't have to be bothered going through all this more than once

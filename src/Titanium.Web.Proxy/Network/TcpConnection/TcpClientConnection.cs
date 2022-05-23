@@ -52,7 +52,7 @@ namespace Titanium.Web.Proxy.Network.Tcp
                 return processId.Value;
             }
 
-            if (RunTime.IsWindows)
+            if (RunTime.IsWindows())
             {
                 var remoteEndPoint = (IPEndPoint)RemoteEndPoint;
 

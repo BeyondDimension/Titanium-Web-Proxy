@@ -19,7 +19,7 @@ namespace Titanium.Web.Proxy.EventArguments
     /// </summary>
     public abstract class SessionEventArgsBase : ProxyEventArgsBase, IDisposable
     {
-        private static bool isWindowsAuthenticationSupported => RunTime.IsWindows;
+        private static bool isWindowsAuthenticationSupported => RunTime.IsWindows();
 
         internal readonly CancellationTokenSource CancellationTokenSource;
 
