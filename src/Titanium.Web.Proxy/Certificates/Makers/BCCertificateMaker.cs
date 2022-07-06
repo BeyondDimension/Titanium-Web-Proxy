@@ -39,7 +39,7 @@ namespace Titanium.Web.Proxy.Network.Certificate
         internal BCCertificateMaker(ExceptionHandler? exceptionFunc, int certificateValidDays)
         {
             this.certificateValidDays = certificateValidDays;
-            this.exceptionFunc = exceptionFunc;  
+            this.exceptionFunc = exceptionFunc;
         }
 
         /// <summary>
@@ -170,12 +170,23 @@ namespace Titanium.Web.Proxy.Network.Certificate
             const string password = "password";
             Pkcs12Store store;
 
+#if NET6_0_OR_GREATER
+            if (OperatingSystem.IsAndroid())
+            {
+                var builder = new Pkcs12StoreBuilder();
+                builder.SetUseDerEncoding(true);
+                // https://github.com/dotnet/runtime/issues/71603
+                builder.SetCertAlgorithm(PkcsObjectIdentifiers.PbeWithShaAnd3KeyTripleDesCbc);
+                store = builder.Build();
+            }
+#else
             if (RunTime.IsRunningOnMono())
             {
                 var builder = new Pkcs12StoreBuilder();
                 builder.SetUseDerEncoding(true);
                 store = builder.Build();
             }
+#endif
             else
             {
                 store = new Pkcs12Store();
