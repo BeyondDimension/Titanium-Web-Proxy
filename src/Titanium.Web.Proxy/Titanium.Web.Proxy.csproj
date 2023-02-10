@@ -1,7 +1,7 @@
-﻿<Project Sdk="MSBuild.Sdk.Extras">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netstandard2.1;net6.0;MonoAndroid11.0</TargetFrameworks>
+        <TargetFrameworks>net7.0;net7.0-android</TargetFrameworks>
         <RootNamespace>Titanium.Web.Proxy</RootNamespace>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <SignAssembly>True</SignAssembly>
