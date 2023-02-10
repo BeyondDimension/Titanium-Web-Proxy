@@ -1,33 +1,30 @@
-﻿using System;
-using System.Threading.Tasks;
-using Titanium.Web.Proxy.EventArguments;
+﻿using Titanium.Web.Proxy.Handlers;
 
-namespace Titanium.Web.Proxy.Extensions
+namespace Titanium.Web.Proxy.Extensions;
+
+internal static class FuncExtensions
 {
-    internal static class FuncExtensions
+    internal static async Task InvokeAsync<T>(this AsyncEventHandler<T> callback, object sender, T args,
+        ExceptionHandler? exceptionFunc)
     {
-        internal static async Task InvokeAsync<T>(this AsyncEventHandler<T> callback, object sender, T args,
-            ExceptionHandler? exceptionFunc)
-        {
-            var invocationList = callback.GetInvocationList();
+        var invocationList = callback.GetInvocationList();
 
-            foreach (var @delegate in invocationList)
-            {
-                await internalInvokeAsync((AsyncEventHandler<T>)@delegate, sender, args, exceptionFunc);
-            }
+        foreach (var @delegate in invocationList)
+        {
+            await internalInvokeAsync((AsyncEventHandler<T>)@delegate, sender, args, exceptionFunc);
         }
+    }
 
-        private static async Task internalInvokeAsync<T>(AsyncEventHandler<T> callback, object sender, T args,
-            ExceptionHandler? exceptionFunc)
+    private static async Task internalInvokeAsync<T>(AsyncEventHandler<T> callback, object sender, T args,
+        ExceptionHandler? exceptionFunc)
+    {
+        try
         {
-            try
-            {
-                await callback(sender, args);
-            }
-            catch (Exception e)
-            {
-                exceptionFunc?.Invoke(new Exception("Exception thrown in user event", e));
-            }
+            await callback(sender, args);
+        }
+        catch (Exception e)
+        {
+            exceptionFunc?.Invoke(new Exception("Exception thrown in user event", e));
         }
     }
 }

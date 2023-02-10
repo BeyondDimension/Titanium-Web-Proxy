@@ -1,13 +1,10 @@
-﻿using System;
+﻿namespace Titanium.Web.Proxy.Models;
 
-namespace Titanium.Web.Proxy.Helpers
+struct ResponseStatusInfo
 {
-    struct ResponseStatusInfo
-    {
-        public Version Version { get; set; }
+    public Version Version { get; set; }
 
-        public int StatusCode { get; set; }
+    public int StatusCode { get; set; }
 
-        public string Description { get; set; }
-    }
+    public string Description { get; set; }
 }

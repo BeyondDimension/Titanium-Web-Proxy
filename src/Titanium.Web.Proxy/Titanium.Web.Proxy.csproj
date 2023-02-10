@@ -2,18 +2,16 @@
 
     <PropertyGroup>
         <TargetFrameworks>net7.0;net7.0-android</TargetFrameworks>
+        <LangVersion>latest</LangVersion>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <IsTrimmable>true</IsTrimmable>
         <RootNamespace>Titanium.Web.Proxy</RootNamespace>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-        <SignAssembly>True</SignAssembly>
+        <SignAssembly>true</SignAssembly>
         <AssemblyOriginatorKeyFile>StrongNameKey.snk</AssemblyOriginatorKeyFile>
-        <DelaySign>False</DelaySign>
-        <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-        <Nullable>enable</Nullable>
-        <LangVersion>10.0</LangVersion>
-    </PropertyGroup>
-
-    <PropertyGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
-        <DefineConstants>UnifiedVersion;$(DefineConstants)</DefineConstants>
+        <DelaySign>false</DelaySign>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
@@ -56,15 +54,6 @@
         <Compile Update="Properties\AssemblyInfo.cs">
             <ExcludeFromSourceAnalysis>True</ExcludeFromSourceAnalysis>
             <ExcludeFromStyleCop>True</ExcludeFromStyleCop>
-        </Compile>
-    </ItemGroup>
-
-    <ItemGroup Condition=" Exists('$(MSBuildProjectDirectory)\..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs') ">
-        <Compile Include="..\..\..\..\src\Common.CoreLib\Properties\AssemblyInfo.Version.cs">
-            <Link>Properties\AssemblyInfo.Version.cs</Link>
-        </Compile>
-        <Compile Include="..\..\..\..\src\Common.CoreLib\Properties\ThisAssembly.Version.cs">
-            <Link>Properties\ThisAssembly.Version.cs</Link>
         </Compile>
     </ItemGroup>
 </Project>

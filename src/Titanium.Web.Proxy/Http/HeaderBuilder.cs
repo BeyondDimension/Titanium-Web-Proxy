@@ -1,115 +1,112 @@
-﻿using System;
-using System.Buffers;
-using System.IO;
+﻿using System.Buffers;
 using System.Text;
 using Titanium.Web.Proxy.Models;
 using Titanium.Web.Proxy.Shared;
 
-namespace Titanium.Web.Proxy.Http
+namespace Titanium.Web.Proxy.Http;
+
+internal class HeaderBuilder
 {
-    internal class HeaderBuilder
+    private readonly MemoryStream stream = new();
+
+    public void WriteRequestLine(string httpMethod, string httpUrl, Version version)
     {
-        private readonly MemoryStream stream = new MemoryStream();
+        // "{httpMethod} {httpUrl} HTTP/{version.Major}.{version.Minor}";
 
-        public void WriteRequestLine(string httpMethod, string httpUrl, Version version)
+        Write(httpMethod);
+        Write(" ");
+        Write(httpUrl);
+        Write(" HTTP/");
+        Write(version.Major.ToString());
+        Write(".");
+        Write(version.Minor.ToString());
+        WriteLine();
+    }
+
+    public void WriteResponseLine(Version version, int statusCode, string statusDescription)
+    {
+        // "HTTP/{version.Major}.{version.Minor} {statusCode} {statusDescription}";
+
+        Write("HTTP/");
+        Write(version.Major.ToString());
+        Write(".");
+        Write(version.Minor.ToString());
+        Write(" ");
+        Write(statusCode.ToString());
+        Write(" ");
+        Write(statusDescription);
+        WriteLine();
+    }
+
+    public void WriteHeaders(HeaderCollection headers, bool sendProxyAuthorization = true,
+        string? upstreamProxyUserName = null, string? upstreamProxyPassword = null)
+    {
+        if (upstreamProxyUserName != null && upstreamProxyPassword != null)
         {
-            // "{httpMethod} {httpUrl} HTTP/{version.Major}.{version.Minor}";
-
-            Write(httpMethod);
-            Write(" ");
-            Write(httpUrl);
-            Write(" HTTP/");
-            Write(version.Major.ToString());
-            Write(".");
-            Write(version.Minor.ToString());
-            WriteLine();
+            WriteHeader(HttpHeader.ProxyConnectionKeepAlive);
+            WriteHeader(HttpHeader.GetProxyAuthorizationHeader(upstreamProxyUserName, upstreamProxyPassword));
         }
 
-        public void WriteResponseLine(Version version, int statusCode, string statusDescription)
+        foreach (var header in headers)
         {
-            // "HTTP/{version.Major}.{version.Minor} {statusCode} {statusDescription}";
-
-            Write("HTTP/");
-            Write(version.Major.ToString());
-            Write(".");
-            Write(version.Minor.ToString());
-            Write(" ");
-            Write(statusCode.ToString());
-            Write(" ");
-            Write(statusDescription);
-            WriteLine();
-        }
-
-        public void WriteHeaders(HeaderCollection headers, bool sendProxyAuthorization = true,
-            string? upstreamProxyUserName = null, string? upstreamProxyPassword = null)
-        {
-            if (upstreamProxyUserName != null && upstreamProxyPassword != null)
+            if (sendProxyAuthorization || !KnownHeaders.ProxyAuthorization.Equals(header.Name))
             {
-                WriteHeader(HttpHeader.ProxyConnectionKeepAlive);
-                WriteHeader(HttpHeader.GetProxyAuthorizationHeader(upstreamProxyUserName, upstreamProxyPassword));
+                WriteHeader(header);
             }
-
-            foreach (var header in headers)
-            {
-                if (sendProxyAuthorization || !KnownHeaders.ProxyAuthorization.Equals(header.Name))
-                {
-                    WriteHeader(header);
-                }
-            }
-
-            WriteLine();
         }
 
-        public void WriteHeader(HttpHeader header)
-        {
-            Write(header.Name);
-            Write(": ");
-            Write(header.Value);
-            WriteLine();
-        }
+        WriteLine();
+    }
 
-        public void WriteLine()
-        {
-            var data = ProxyConstants.NewLineBytes;
-            stream.Write(data, 0, data.Length);
-        }
+    public void WriteHeader(HttpHeader header)
+    {
+        Write(header.Name);
+        Write(": ");
+        Write(header.Value);
+        WriteLine();
+    }
 
-        public void Write(string str)
-        {
-            var encoding = HttpHeader.Encoding;
+    public void WriteLine()
+    {
+        var data = ProxyConstants.NewLineBytes;
+        stream.Write(data, 0, data.Length);
+    }
 
-#if NETSTANDARD2_1 || NET5_0 || NET6_0 || __ANDROID__
-            var buf = ArrayPool<byte>.Shared.Rent(encoding.GetMaxByteCount(str.Length));
-            var span = new Span<byte>(buf);
+    public void Write(string str)
+    {
+        var encoding = HttpHeader.Encoding;
 
-            int bytes = encoding.GetBytes(str.AsSpan(), span);
+#if NETSTANDARD2_1 || NET5_0_OR_GREATER || __ANDROID__
+        var buf = ArrayPool<byte>.Shared.Rent(encoding.GetMaxByteCount(str.Length));
+        var span = new Span<byte>(buf);
 
-            stream.Write(span.Slice(0, bytes));
-            ArrayPool<byte>.Shared.Return(buf);
+        int bytes = encoding.GetBytes(str.AsSpan(), span);
+
+        stream.Write(span.Slice(0, bytes));
+        ArrayPool<byte>.Shared.Return(buf);
 #else
-            var data = encoding.GetBytes(str);
-            stream.Write(data, 0, data.Length);
+        var data = encoding.GetBytes(str);
+        stream.Write(data, 0, data.Length);
 #endif
-        }
+    }
 
-        public ArraySegment<byte> GetBuffer()
-        {
+    public ArraySegment<byte> GetBuffer()
+    {
 #if NET451
-            return new ArraySegment<byte>(stream.ToArray());
+        return new ArraySegment<byte>(stream.ToArray());
 #else
-            stream.TryGetBuffer(out var buffer);
-            return buffer;
+        stream.TryGetBuffer(out var buffer);
+        return buffer;
 #endif
-        }
+    }
 
-        public string GetString(Encoding encoding)
-        {
+    public string GetString(Encoding encoding)
+    {
 #if NET451
-            return encoding.GetString(stream.ToArray());
+        return encoding.GetString(stream.ToArray());
 #else
-            stream.TryGetBuffer(out var buffer);
-            return encoding.GetString(buffer.Array, buffer.Offset, buffer.Count);
+        stream.TryGetBuffer(out var buffer);
+        return encoding.GetString(buffer.Array, buffer.Offset, buffer.Count);
 #endif
-        }
     }
 }

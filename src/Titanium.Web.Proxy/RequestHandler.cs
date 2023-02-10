@@ -1,449 +1,443 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Security;
+﻿using System.Net.Security;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 using Titanium.Web.Proxy.EventArguments;
 using Titanium.Web.Proxy.Exceptions;
 using Titanium.Web.Proxy.Extensions;
-using Titanium.Web.Proxy.Helpers;
 using Titanium.Web.Proxy.Http;
 using Titanium.Web.Proxy.Models;
 using Titanium.Web.Proxy.Network;
-using Titanium.Web.Proxy.Network.Tcp;
+using Titanium.Web.Proxy.Network.Streams;
+using Titanium.Web.Proxy.Network.TcpConnection;
 using Titanium.Web.Proxy.Shared;
 
-namespace Titanium.Web.Proxy
+namespace Titanium.Web.Proxy;
+
+/// <summary>
+///     Handle the request
+/// </summary>
+public partial class ProxyServer
 {
     /// <summary>
-    ///     Handle the request
+    ///     This is the core request handler method for a particular connection from client.
+    ///     Will create new session (request/response) sequence until
+    ///     client/server abruptly terminates connection or by normal HTTP termination.
     /// </summary>
-    public partial class ProxyServer
+    /// <param name="endPoint">The proxy endpoint.</param>
+    /// <param name="clientStream">The client stream.</param>
+    /// <param name="cancellationTokenSource">The cancellation token source for this async task.</param>
+    /// <param name="connectArgs">The Connect request if this is a HTTPS request from explicit endpoint.</param>
+    /// <param name="prefetchConnectionTask">Prefetched server connection for current client using Connect/SNI headers.</param>
+    /// <param name="isHttps">Is HTTPS</param>
+    private async Task handleHttpSessionRequest(ProxyEndPoint endPoint, HttpClientStream clientStream,
+        CancellationTokenSource cancellationTokenSource, TunnelConnectSessionEventArgs? connectArgs = null,
+        Task<TcpServerConnection?>? prefetchConnectionTask = null, bool isHttps = false)
     {
-        /// <summary>
-        ///     This is the core request handler method for a particular connection from client.
-        ///     Will create new session (request/response) sequence until
-        ///     client/server abruptly terminates connection or by normal HTTP termination.
-        /// </summary>
-        /// <param name="endPoint">The proxy endpoint.</param>
-        /// <param name="clientStream">The client stream.</param>
-        /// <param name="cancellationTokenSource">The cancellation token source for this async task.</param>
-        /// <param name="connectArgs">The Connect request if this is a HTTPS request from explicit endpoint.</param>
-        /// <param name="prefetchConnectionTask">Prefetched server connection for current client using Connect/SNI headers.</param>
-        /// <param name="isHttps">Is HTTPS</param>
-        private async Task handleHttpSessionRequest(ProxyEndPoint endPoint, HttpClientStream clientStream,
-            CancellationTokenSource cancellationTokenSource, TunnelConnectSessionEventArgs? connectArgs = null,
-            Task<TcpServerConnection?>? prefetchConnectionTask = null, bool isHttps = false)
+        var connectRequest = connectArgs?.HttpClient.ConnectRequest;
+
+        var prefetchTask = prefetchConnectionTask;
+        TcpServerConnection? connection = null;
+        bool closeServerConnection = false;
+
+        try
         {
-            var connectRequest = connectArgs?.HttpClient.ConnectRequest;
+            var cancellationToken = cancellationTokenSource.Token;
 
-            var prefetchTask = prefetchConnectionTask;
-            TcpServerConnection? connection = null;
-            bool closeServerConnection = false;
-
-            try
+            // Loop through each subsequent request on this particular client connection
+            // (assuming HTTP connection is kept alive by client)
+            while (true)
             {
-                var cancellationToken = cancellationTokenSource.Token;
-
-                // Loop through each subsequent request on this particular client connection
-                // (assuming HTTP connection is kept alive by client)
-                while (true)
+                if (clientStream.IsClosed)
                 {
-                    if (clientStream.IsClosed)
-                    {
-                        return;
-                    }
+                    return;
+                }
 
-                    // read the request line
-                    var requestLine = await clientStream.ReadRequestLine(cancellationToken);
-                    if (requestLine.IsEmpty())
-                    {
-                        return;
-                    }
+                // read the request line
+                var requestLine = await clientStream.ReadRequestLine(cancellationToken);
+                if (requestLine.IsEmpty())
+                {
+                    return;
+                }
 
-                    var args = new SessionEventArgs(this, endPoint, clientStream, connectRequest, cancellationTokenSource)
-                    {
-                        UserData = connectArgs?.UserData
-                    };
+                var args = new SessionEventArgs(this, endPoint, clientStream, connectRequest, cancellationTokenSource)
+                {
+                    UserData = connectArgs?.UserData
+                };
 
-                    var request = args.HttpClient.Request;
-                    if (isHttps)
-                    {
-                        request.IsHttps = true;
-                    }
+                var request = args.HttpClient.Request;
+                if (isHttps)
+                {
+                    request.IsHttps = true;
+                }
 
+                try
+                {
                     try
                     {
-                        try
+                        // Read the request headers in to unique and non-unique header collections
+                        await HeaderParser.ReadHeaders(clientStream, args.HttpClient.Request.Headers,
+                            cancellationToken);
+
+                        if (connectRequest != null)
                         {
-                            // Read the request headers in to unique and non-unique header collections
-                            await HeaderParser.ReadHeaders(clientStream, args.HttpClient.Request.Headers,
-                                cancellationToken);
+                            request.IsHttps = connectRequest.IsHttps;
+                            request.Authority = connectRequest.Authority;
+                        }
 
-                            if (connectRequest != null)
+                        request.RequestUriString8 = requestLine.RequestUri;
+
+                        request.Method = requestLine.Method;
+                        request.HttpVersion = requestLine.Version;
+
+                        // we need this to syphon out data from connection if API user changes them.
+                        request.SetOriginalHeaders();
+
+                        // If user requested interception do it
+                        await onBeforeRequest(args);
+
+                        if (!args.IsTransparent && !args.IsSocks)
+                        {
+                            // proxy authorization check
+                            if (connectRequest == null && await checkAuthorization(args) == false)
                             {
-                                request.IsHttps = connectRequest.IsHttps;
-                                request.Authority = connectRequest.Authority;
-                            }
+                                await onBeforeResponse(args);
 
-                            request.RequestUriString8 = requestLine.RequestUri;
-
-                            request.Method = requestLine.Method;
-                            request.HttpVersion = requestLine.Version;
-
-                            // we need this to syphon out data from connection if API user changes them.
-                            request.SetOriginalHeaders();
-
-                            // If user requested interception do it
-                            await onBeforeRequest(args);
-
-                            if (!args.IsTransparent && !args.IsSocks)
-                            {
-                                // proxy authorization check
-                                if (connectRequest == null && await checkAuthorization(args) == false)
-                                {
-                                    await onBeforeResponse(args);
-
-                                    // send the response
-                                    await clientStream.WriteResponseAsync(args.HttpClient.Response, cancellationToken);
-                                    return;
-                                }
-
-                                prepareRequestHeaders(request.Headers);
-                                request.Host = request.RequestUri.Authority;
-                            }
-
-                            // if win auth is enabled
-                            // we need a cache of request body
-                            // so that we can send it after authentication in WinAuthHandler.cs
-                            if (args.EnableWinAuth && request.HasBody)
-                            {
-                                await args.GetRequestBody(cancellationToken);
-                            }
-
-                            var response = args.HttpClient.Response;
-
-                            if (request.CancelRequest)
-                            {
-                                if (!(Enable100ContinueBehaviour && request.ExpectContinue))
-                                {
-                                    // syphon out the request body from client before setting the new body
-                                    await args.SyphonOutBodyAsync(true, cancellationToken);
-                                }
-
-                                await handleHttpSessionResponse(args);
-
-                                if (!response.KeepAlive)
-                                {
-                                    return;
-                                }
-
-                                continue;
-                            }
-
-                            // If prefetch task is available.
-                            if (connection == null && prefetchTask != null)
-                            {
-                                try
-                                {
-                                    connection = await prefetchTask;
-                                }
-                                catch (SocketException e)
-                                {
-                                    if (e.SocketErrorCode != SocketError.HostNotFound)
-                                    {
-                                        throw;
-                                    }
-                                }
-
-                                prefetchTask = null;
-                            }
-
-                            if (connection != null)
-                            {
-                                var socket = connection.TcpSocket;
-                                bool part1 = socket.Poll(1000, SelectMode.SelectRead);
-                                bool part2 = socket.Available == 0;
-                                if (part1 & part2)
-                                {
-                                    //connection is closed
-                                    await tcpConnectionFactory.Release(connection, true);
-                                    connection = null;
-                                }
-                            }
-
-                            // create a new connection if cache key changes.
-                            // only gets hit when connection pool is disabled.
-                            // or when prefetch task has a unexpectedly different connection.
-                            if (connection != null
-                                && (await tcpConnectionFactory.GetConnectionCacheKey(this, args,
-                                    clientStream.Connection.NegotiatedApplicationProtocol)
-                                                != connection.CacheKey))
-                            {
-                                await tcpConnectionFactory.Release(connection);
-                                connection = null;
-                            }
-
-                            var result = await handleHttpSessionRequest(args, connection,
-                                clientStream.Connection.NegotiatedApplicationProtocol,
-                                  cancellationToken, cancellationTokenSource);
-
-                            var newConnection = result.LatestConnection;
-                            if (connection != newConnection && connection != null)
-                            {
-                                await tcpConnectionFactory.Release(connection);
-                            }
-
-                            // update connection to latest used
-                            connection = result.LatestConnection;
-
-                            closeServerConnection = !result.Continue;
-
-                            // throw if exception happened
-                            if (result.Exception != null)
-                            {
-                                throw result.Exception;
-                            }
-
-                            if (!result.Continue)
-                            {
+                                // send the response
+                                await clientStream.WriteResponseAsync(args.HttpClient.Response, cancellationToken);
                                 return;
                             }
 
-                            // user requested
-                            if (args.HttpClient.CloseServerConnection)
+                            prepareRequestHeaders(request.Headers);
+                            request.Host = request.RequestUri.Authority;
+                        }
+
+                        // if win auth is enabled
+                        // we need a cache of request body
+                        // so that we can send it after authentication in WinAuthHandler.cs
+                        if (args.EnableWinAuth && request.HasBody)
+                        {
+                            await args.GetRequestBody(cancellationToken);
+                        }
+
+                        var response = args.HttpClient.Response;
+
+                        if (request.CancelRequest)
+                        {
+                            if (!(Enable100ContinueBehaviour && request.ExpectContinue))
                             {
-                                closeServerConnection = true;
-                                return;
+                                // syphon out the request body from client before setting the new body
+                                await args.SyphonOutBodyAsync(true, cancellationToken);
                             }
 
-                            // if connection is closing exit
+                            await handleHttpSessionResponse(args);
+
                             if (!response.KeepAlive)
                             {
-                                closeServerConnection = true;
                                 return;
                             }
 
-                            if (cancellationTokenSource.IsCancellationRequested)
+                            continue;
+                        }
+
+                        // If prefetch task is available.
+                        if (connection == null && prefetchTask != null)
+                        {
+                            try
                             {
-                                throw new Exception("Session was terminated by user.");
+                                connection = await prefetchTask;
+                            }
+                            catch (SocketException e)
+                            {
+                                if (e.SocketErrorCode != SocketError.HostNotFound)
+                                {
+                                    throw;
+                                }
                             }
 
-                            // Release server connection for each HTTP session instead of per client connection.
-                            // This will be more efficient especially when client is idly holding server connection 
-                            // between sessions without using it.
-                            // Do not release authenticated connections for performance reasons.
-                            // Otherwise it will keep authenticating per session.
-                            if (EnableConnectionPool && connection != null
-                                    && !connection.IsWinAuthenticated)
+                            prefetchTask = null;
+                        }
+
+                        if (connection != null)
+                        {
+                            var socket = connection.TcpSocket;
+                            bool part1 = socket.Poll(1000, SelectMode.SelectRead);
+                            bool part2 = socket.Available == 0;
+                            if (part1 & part2)
                             {
-                                await tcpConnectionFactory.Release(connection);
+                                //connection is closed
+                                await tcpConnectionFactory.Release(connection, true);
                                 connection = null;
                             }
                         }
-                        catch (Exception e) when (!(e is ProxyHttpException))
+
+                        // create a new connection if cache key changes.
+                        // only gets hit when connection pool is disabled.
+                        // or when prefetch task has a unexpectedly different connection.
+                        if (connection != null
+                            && (await tcpConnectionFactory.GetConnectionCacheKey(this, args,
+                                clientStream.Connection.NegotiatedApplicationProtocol)
+                                            != connection.CacheKey))
                         {
-                            throw new ProxyHttpException("Error occured whilst handling session request", e, args);
+                            await tcpConnectionFactory.Release(connection);
+                            connection = null;
+                        }
+
+                        var result = await handleHttpSessionRequest(args, connection,
+                            clientStream.Connection.NegotiatedApplicationProtocol,
+                              cancellationToken, cancellationTokenSource);
+
+                        var newConnection = result.LatestConnection;
+                        if (connection != newConnection && connection != null)
+                        {
+                            await tcpConnectionFactory.Release(connection);
+                        }
+
+                        // update connection to latest used
+                        connection = result.LatestConnection;
+
+                        closeServerConnection = !result.Continue;
+
+                        // throw if exception happened
+                        if (result.Exception != null)
+                        {
+                            throw result.Exception;
+                        }
+
+                        if (!result.Continue)
+                        {
+                            return;
+                        }
+
+                        // user requested
+                        if (args.HttpClient.CloseServerConnection)
+                        {
+                            closeServerConnection = true;
+                            return;
+                        }
+
+                        // if connection is closing exit
+                        if (!response.KeepAlive)
+                        {
+                            closeServerConnection = true;
+                            return;
+                        }
+
+                        if (cancellationTokenSource.IsCancellationRequested)
+                        {
+                            throw new Exception("Session was terminated by user.");
+                        }
+
+                        // Release server connection for each HTTP session instead of per client connection.
+                        // This will be more efficient especially when client is idly holding server connection 
+                        // between sessions without using it.
+                        // Do not release authenticated connections for performance reasons.
+                        // Otherwise it will keep authenticating per session.
+                        if (EnableConnectionPool && connection != null
+                                && !connection.IsWinAuthenticated)
+                        {
+                            await tcpConnectionFactory.Release(connection);
+                            connection = null;
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception e) when (!(e is ProxyHttpException))
                     {
-                        args.Exception = e;
-                        closeServerConnection = true;
-                        throw;
-                    }
-                    finally
-                    {
-                        await onAfterResponse(args);
-                        args.Dispose();
+                        throw new ProxyHttpException("Error occured whilst handling session request", e, args);
                     }
                 }
-            }
-            finally
-            {
-                if (connection != null)
+                catch (Exception e)
                 {
-                    await tcpConnectionFactory.Release(connection, closeServerConnection);
+                    args.Exception = e;
+                    closeServerConnection = true;
+                    throw;
                 }
-
-                await tcpConnectionFactory.Release(prefetchTask, closeServerConnection);
+                finally
+                {
+                    await onAfterResponse(args);
+                    args.Dispose();
+                }
             }
         }
-
-        private async Task<RetryResult> handleHttpSessionRequest(SessionEventArgs args,
-          TcpServerConnection? serverConnection, SslApplicationProtocol sslApplicationProtocol,
-          CancellationToken cancellationToken, CancellationTokenSource cancellationTokenSource)
+        finally
         {
-            args.HttpClient.Request.Locked = true;
-
-            // do not cache server connections for WebSockets
-            bool noCache = args.HttpClient.Request.UpgradeToWebSocket;
-
-            if (noCache)
+            if (connection != null)
             {
-                serverConnection = null;
+                await tcpConnectionFactory.Release(connection, closeServerConnection);
             }
 
-            // a connection generator task with captured parameters via closure.
-            Func<Task<TcpServerConnection>> generator = () =>
-                tcpConnectionFactory.GetServerConnection(this,
-                    args,
-                    false,
-                    sslApplicationProtocol,
-                    noCache,
-                    cancellationToken);
+            await tcpConnectionFactory.Release(prefetchTask, closeServerConnection);
+        }
+    }
 
-            /// Retry with new connection if the initial stream.WriteAsync call to server fails.
-            /// i.e if request line and headers failed to get send.
-            /// Do not retry after reading data from client stream, 
-            /// because subsequent try will not have data to read from client 
-            /// and will hang at clientStream.ReadAsync call.
-            /// So, throw RetryableServerConnectionException only when we are sure we can retry safely.
-            return await retryPolicy<RetryableServerConnectionException>().ExecuteAsync(async connection =>
-            {
-                // set the connection and send request headers
-                args.HttpClient.SetConnection(connection);
+    private async Task<RetryResult> handleHttpSessionRequest(SessionEventArgs args,
+      TcpServerConnection? serverConnection, SslApplicationProtocol sslApplicationProtocol,
+      CancellationToken cancellationToken, CancellationTokenSource cancellationTokenSource)
+    {
+        args.HttpClient.Request.Locked = true;
 
-                args.TimeLine["Connection Ready"] = DateTime.UtcNow;
+        // do not cache server connections for WebSockets
+        bool noCache = args.HttpClient.Request.UpgradeToWebSocket;
 
-                if (args.HttpClient.Request.UpgradeToWebSocket)
-                {
-                    // connectRequest can be null for SOCKS connection
-                    if (args.HttpClient.ConnectRequest != null)
-                    {
-                        args.HttpClient.ConnectRequest!.TunnelType = TunnelType.Websocket;
-                    }
-
-                    // if upgrading to websocket then relay the request without reading the contents
-                    await handleWebSocketUpgrade(args, args.ClientStream, connection, cancellationTokenSource, cancellationToken);
-                    return false;
-                }
-
-                // construct the web request that we are going to issue on behalf of the client.
-                await handleHttpSessionRequest(args);
-                return true;
-
-            }, generator, serverConnection);
+        if (noCache)
+        {
+            serverConnection = null;
         }
 
-        private async Task handleHttpSessionRequest(SessionEventArgs args)
-        {
-            var cancellationToken = args.CancellationTokenSource.Token;
-            var request = args.HttpClient.Request;
-
-            var body = request.CompressBodyAndUpdateContentLength();
-
-            await args.HttpClient.SendRequest(Enable100ContinueBehaviour, args.IsTransparent,
+        // a connection generator task with captured parameters via closure.
+        Func<Task<TcpServerConnection>> generator = () =>
+            tcpConnectionFactory.GetServerConnection(this,
+                args,
+                false,
+                sslApplicationProtocol,
+                noCache,
                 cancellationToken);
 
-            // If a successful 100 continue request was made, inform that to the client and reset response
-            if (request.ExpectationSucceeded)
+        /// Retry with new connection if the initial stream.WriteAsync call to server fails.
+        /// i.e if request line and headers failed to get send.
+        /// Do not retry after reading data from client stream, 
+        /// because subsequent try will not have data to read from client 
+        /// and will hang at clientStream.ReadAsync call.
+        /// So, throw RetryableServerConnectionException only when we are sure we can retry safely.
+        return await retryPolicy<RetryableServerConnectionException>().ExecuteAsync(async connection =>
+        {
+            // set the connection and send request headers
+            args.HttpClient.SetConnection(connection);
+
+            args.TimeLine["Connection Ready"] = DateTime.UtcNow;
+
+            if (args.HttpClient.Request.UpgradeToWebSocket)
             {
-                var writer = args.ClientStream;
-                var response = args.HttpClient.Response;
-
-                var headerBuilder = new HeaderBuilder();
-                headerBuilder.WriteResponseLine(response.HttpVersion, response.StatusCode, response.StatusDescription);
-                headerBuilder.WriteHeaders(response.Headers);
-                await writer.WriteHeadersAsync(headerBuilder, cancellationToken);
-
-                await args.ClearResponse(cancellationToken);
-            }
-
-            // send body to server if available
-            if (request.HasBody)
-            {
-                if (request.IsBodyRead)
+                // connectRequest can be null for SOCKS connection
+                if (args.HttpClient.ConnectRequest != null)
                 {
-                    await args.HttpClient.Connection.Stream.WriteBodyAsync(body!, request.IsChunked, cancellationToken);
+                    args.HttpClient.ConnectRequest!.TunnelType = TunnelType.Websocket;
                 }
-                else if (!request.ExpectationFailed)
-                {
-                    // get the request body unless an unsuccessful 100 continue request was made
-                    await args.CopyRequestBodyAsync(args.HttpClient.Connection.Stream, TransformationMode.None, cancellationToken);
-                }
+
+                // if upgrading to websocket then relay the request without reading the contents
+                await handleWebSocketUpgrade(args, args.ClientStream, connection, cancellationTokenSource, cancellationToken);
+                return false;
             }
 
-            args.TimeLine["Request Sent"] = DateTime.UtcNow;
+            // construct the web request that we are going to issue on behalf of the client.
+            await handleHttpSessionRequest(args);
+            return true;
 
-            // parse and send response
-            await handleHttpSessionResponse(args);
-        }
+        }, generator, serverConnection);
+    }
 
-        /// <summary>
-        ///     Prepare the request headers so that we can avoid encodings not parseable by this proxy
-        /// </summary>
-        private void prepareRequestHeaders(HeaderCollection requestHeaders)
+    private async Task handleHttpSessionRequest(SessionEventArgs args)
+    {
+        var cancellationToken = args.CancellationTokenSource.Token;
+        var request = args.HttpClient.Request;
+
+        var body = request.CompressBodyAndUpdateContentLength();
+
+        await args.HttpClient.SendRequest(Enable100ContinueBehaviour, args.IsTransparent,
+            cancellationToken);
+
+        // If a successful 100 continue request was made, inform that to the client and reset response
+        if (request.ExpectationSucceeded)
         {
-            string? acceptEncoding = requestHeaders.GetHeaderValueOrNull(KnownHeaders.AcceptEncoding);
+            var writer = args.ClientStream;
+            var response = args.HttpClient.Response;
 
-            if (acceptEncoding != null)
-            {
-                var supportedAcceptEncoding = new List<string>();
+            var headerBuilder = new HeaderBuilder();
+            headerBuilder.WriteResponseLine(response.HttpVersion, response.StatusCode, response.StatusDescription);
+            headerBuilder.WriteHeaders(response.Headers);
+            await writer.WriteHeadersAsync(headerBuilder, cancellationToken);
 
-                // only allow proxy supported compressions
-                supportedAcceptEncoding.AddRange(acceptEncoding.Split(',')
-                    .Select(x => x.Trim())
-                    .Where(x => ProxyConstants.ProxySupportedCompressions.Contains(x)));
-
-                // uncompressed is always supported by proxy
-                supportedAcceptEncoding.Add("identity");
-
-                requestHeaders.SetOrAddHeaderValue(KnownHeaders.AcceptEncoding,
-                    string.Join(", ", supportedAcceptEncoding));
-            }
-
-            requestHeaders.FixProxyHeaders();
+            await args.ClearResponse(cancellationToken);
         }
 
-        /// <summary>
-        ///     Invoke before request handler if it is set.
-        /// </summary>
-        /// <param name="args">The session event arguments.</param>
-        /// <returns></returns>
-        private async Task onBeforeRequest(SessionEventArgs args)
+        // send body to server if available
+        if (request.HasBody)
         {
-            args.TimeLine["Request Received"] = DateTime.UtcNow;
-
-            if (BeforeRequest != null)
+            if (request.IsBodyRead)
             {
-                await BeforeRequest.InvokeAsync(this, args, ExceptionFunc);
+                await args.HttpClient.Connection.Stream.WriteBodyAsync(body!, request.IsChunked, cancellationToken);
+            }
+            else if (!request.ExpectationFailed)
+            {
+                // get the request body unless an unsuccessful 100 continue request was made
+                await args.CopyRequestBodyAsync(args.HttpClient.Connection.Stream, TransformationMode.None, cancellationToken);
             }
         }
 
-        /// <summary>
-        ///     Invoke before request handler if it is set.
-        /// </summary>
-        /// <param name="request">The COONECT request.</param>
-        /// <returns></returns>
-        internal async Task onBeforeUpStreamConnectRequest(ConnectRequest request)
+        args.TimeLine["Request Sent"] = DateTime.UtcNow;
+
+        // parse and send response
+        await handleHttpSessionResponse(args);
+    }
+
+    /// <summary>
+    ///     Prepare the request headers so that we can avoid encodings not parseable by this proxy
+    /// </summary>
+    private void prepareRequestHeaders(HeaderCollection requestHeaders)
+    {
+        string? acceptEncoding = requestHeaders.GetHeaderValueOrNull(KnownHeaders.AcceptEncoding);
+
+        if (acceptEncoding != null)
         {
-            if (BeforeUpStreamConnectRequest != null)
-            {
-                await BeforeUpStreamConnectRequest.InvokeAsync(this, request, ExceptionFunc);
-            }
+            var supportedAcceptEncoding = new List<string>();
+
+            // only allow proxy supported compressions
+            supportedAcceptEncoding.AddRange(acceptEncoding.Split(',')
+                .Select(x => x.Trim())
+                .Where(x => ProxyConstants.ProxySupportedCompressions.Contains(x)));
+
+            // uncompressed is always supported by proxy
+            supportedAcceptEncoding.Add("identity");
+
+            requestHeaders.SetOrAddHeaderValue(KnownHeaders.AcceptEncoding,
+                string.Join(", ", supportedAcceptEncoding));
         }
+
+        requestHeaders.FixProxyHeaders();
+    }
+
+    /// <summary>
+    ///     Invoke before request handler if it is set.
+    /// </summary>
+    /// <param name="args">The session event arguments.</param>
+    /// <returns></returns>
+    private async Task onBeforeRequest(SessionEventArgs args)
+    {
+        args.TimeLine["Request Received"] = DateTime.UtcNow;
+
+        if (BeforeRequest != null)
+        {
+            await BeforeRequest.InvokeAsync(this, args, ExceptionFunc);
+        }
+    }
+
+    /// <summary>
+    ///     Invoke before request handler if it is set.
+    /// </summary>
+    /// <param name="request">The COONECT request.</param>
+    /// <returns></returns>
+    internal async Task onBeforeUpStreamConnectRequest(ConnectRequest request)
+    {
+        if (BeforeUpStreamConnectRequest != null)
+        {
+            await BeforeUpStreamConnectRequest.InvokeAsync(this, request, ExceptionFunc);
+        }
+    }
 
 #if DEBUG
-        internal bool ShouldCallBeforeRequestBodyWrite()
+    internal bool ShouldCallBeforeRequestBodyWrite()
+    {
+        if (OnRequestBodyWrite != null)
         {
-            if (OnRequestBodyWrite != null)
-            {
-                return true;
-            }
-
-            return false;
+            return true;
         }
 
-        internal async Task OnBeforeRequestBodyWrite(BeforeBodyWriteEventArgs args)
-        {
-            if (OnRequestBodyWrite != null)
-            {
-                await OnRequestBodyWrite.InvokeAsync(this, args, ExceptionFunc);
-            }
-        }
-#endif
+        return false;
     }
+
+    internal async Task OnBeforeRequestBodyWrite(BeforeBodyWriteEventArgs args)
+    {
+        if (OnRequestBodyWrite != null)
+        {
+            await OnRequestBodyWrite.InvokeAsync(this, args, ExceptionFunc);
+        }
+    }
+#endif
 }

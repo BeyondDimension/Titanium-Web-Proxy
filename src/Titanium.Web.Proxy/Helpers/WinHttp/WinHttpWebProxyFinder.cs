@@ -1,369 +1,345 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Net;
+﻿using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Titanium.Web.Proxy.Models;
 
-namespace Titanium.Web.Proxy.Helpers.WinHttp
+namespace Titanium.Web.Proxy.Helpers.WinHttp;
+
+internal sealed class WinHttpWebProxyFinder : IDisposable
 {
-    internal sealed class WinHttpWebProxyFinder : IDisposable
+    private readonly WinHttpHandle session;
+    private bool autoDetectFailed;
+    private AutoWebProxyState state;
+
+    public WinHttpWebProxyFinder()
     {
-        private readonly WinHttpHandle session;
-        private bool autoDetectFailed;
-        private AutoWebProxyState state;
-
-        public WinHttpWebProxyFinder()
+        session = NativeMethods.WinHttp.WinHttpOpen(null, NativeMethods.WinHttp.AccessType.NoProxy, null, null, 0);
+        if (session == null || session.IsInvalid)
         {
-            session = NativeMethods.WinHttp.WinHttpOpen(null, NativeMethods.WinHttp.AccessType.NoProxy, null, null, 0);
-            if (session == null || session.IsInvalid)
+            int lastWin32Error = getLastWin32Error();
+        }
+        else
+        {
+            int downloadTimeout = 60 * 1000;
+            if (NativeMethods.WinHttp.WinHttpSetTimeouts(session, downloadTimeout, downloadTimeout, downloadTimeout,
+                downloadTimeout))
             {
-                int lastWin32Error = getLastWin32Error();
+                return;
             }
-            else
-            {
-                int downloadTimeout = 60 * 1000;
-                if (NativeMethods.WinHttp.WinHttpSetTimeouts(session, downloadTimeout, downloadTimeout, downloadTimeout,
-                    downloadTimeout))
-                {
-                    return;
-                }
 
-                int lastWin32Error = getLastWin32Error();
+            int lastWin32Error = getLastWin32Error();
+        }
+    }
+
+    public ICredentials? Credentials { get; set; }
+
+    public ProxyInfo? ProxyInfo { get; internal set; }
+
+    public bool BypassLoopback { get; internal set; }
+
+    public bool BypassOnLocal { get; internal set; }
+
+    public Uri? AutomaticConfigurationScript { get; internal set; }
+
+    public bool AutomaticallyDetectSettings { get; internal set; }
+
+    private WebProxy? proxy { get; set; }
+
+    public bool GetAutoProxies(Uri destination, out IList<string>? proxyList)
+    {
+        proxyList = null;
+        if (session == null || session.IsInvalid || state == AutoWebProxyState.UnrecognizedScheme)
+        {
+            return false;
+        }
+
+        string? proxyListString = null;
+        var errorCode = NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed;
+        if (AutomaticallyDetectSettings && !autoDetectFailed)
+        {
+            errorCode = (NativeMethods.WinHttp.ErrorCodes)getAutoProxies(destination, null, out proxyListString);
+            autoDetectFailed = isErrorFatalForAutoDetect(errorCode);
+            if (errorCode == NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme)
+            {
+                state = AutoWebProxyState.UnrecognizedScheme;
+                return false;
             }
         }
 
-        public ICredentials? Credentials { get; set; }
-
-        public ProxyInfo? ProxyInfo { get; internal set; }
-
-        public bool BypassLoopback { get; internal set; }
-
-        public bool BypassOnLocal { get; internal set; }
-
-        public Uri? AutomaticConfigurationScript { get; internal set; }
-
-        public bool AutomaticallyDetectSettings { get; internal set; }
-
-        private WebProxy? proxy { get; set; }
-
-        public bool GetAutoProxies(Uri destination, out IList<string>? proxyList)
+        if (AutomaticConfigurationScript != null && isRecoverableAutoProxyError(errorCode))
         {
-            proxyList = null;
-            if (session == null || session.IsInvalid || state == AutoWebProxyState.UnrecognizedScheme)
-            {
-                return false;
-            }
-
-            string? proxyListString = null;
-            var errorCode = NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed;
-            if (AutomaticallyDetectSettings && !autoDetectFailed)
-            {
-                errorCode = (NativeMethods.WinHttp.ErrorCodes)getAutoProxies(destination, null, out proxyListString);
-                autoDetectFailed = isErrorFatalForAutoDetect(errorCode);
-                if (errorCode == NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme)
-                {
-                    state = AutoWebProxyState.UnrecognizedScheme;
-                    return false;
-                }
-            }
-
-            if (AutomaticConfigurationScript != null && isRecoverableAutoProxyError(errorCode))
-            {
-                errorCode = (NativeMethods.WinHttp.ErrorCodes)getAutoProxies(destination, AutomaticConfigurationScript,
-                    out proxyListString);
-            }
-
-            state = getStateFromErrorCode(errorCode);
-            if (state != AutoWebProxyState.Completed)
-            {
-                return false;
-            }
-
-            if (!string.IsNullOrEmpty(proxyListString))
-            {
-                proxyListString = removeWhitespaces(proxyListString!);
-                proxyList = proxyListString.Split(';');
-            }
-
-            return true;
+            errorCode = (NativeMethods.WinHttp.ErrorCodes)getAutoProxies(destination, AutomaticConfigurationScript,
+                out proxyListString);
         }
 
-        public IExternalProxy? GetProxy(Uri destination)
+        state = getStateFromErrorCode(errorCode);
+        if (state != AutoWebProxyState.Completed)
         {
-            if (GetAutoProxies(destination, out var proxies))
-            {
-                if (proxies == null)
-                {
-                    return null;
-                }
+            return false;
+        }
 
-                string proxyStr = proxies[0];
-                int port = 80;
-                if (proxyStr.Contains(":"))
-                {
-                    var parts = proxyStr.Split(new[] { ':' }, 2);
-                    proxyStr = parts[0];
-                    port = int.Parse(parts[1]);
-                }
+        if (!string.IsNullOrEmpty(proxyListString))
+        {
+            proxyListString = removeWhitespaces(proxyListString!);
+            proxyList = proxyListString.Split(';');
+        }
 
-                // TODO: Apply authorization
-                var systemProxy = new ExternalProxy(proxyStr, port);
+        return true;
+    }
 
-                return systemProxy;
-            }
-
-            if (proxy?.IsBypassed(destination) == true)
+    public IExternalProxy? GetProxy(Uri destination)
+    {
+        if (GetAutoProxies(destination, out var proxies))
+        {
+            if (proxies == null)
             {
                 return null;
             }
 
-            var protocolType = ProxyInfo.ParseProtocolType(destination.Scheme);
-            if (protocolType.HasValue)
+            string proxyStr = proxies[0];
+            int port = 80;
+            if (proxyStr.Contains(":"))
             {
-                HttpSystemProxyValue? value = null;
-                if (ProxyInfo?.Proxies?.TryGetValue(protocolType.Value, out value) == true)
-                {
-                    var systemProxy = new ExternalProxy(value!.HostName, value.Port);
-                    return systemProxy;
-                }
+                var parts = proxyStr.Split(new[] { ':' }, 2);
+                proxyStr = parts[0];
+                port = int.Parse(parts[1]);
             }
 
+            // TODO: Apply authorization
+            var systemProxy = new ExternalProxy(proxyStr, port);
+
+            return systemProxy;
+        }
+
+        if (proxy?.IsBypassed(destination) == true)
+        {
             return null;
         }
 
-        public void LoadFromIE()
+        var protocolType = ProxyInfo.ParseProtocolType(destination.Scheme);
+        if (protocolType.HasValue)
         {
-            var pi = getProxyInfo();
-            ProxyInfo = pi;
-            AutomaticallyDetectSettings = pi.AutoDetect == true;
-            AutomaticConfigurationScript = pi.AutoConfigUrl == null ? null : new Uri(pi.AutoConfigUrl);
-            BypassLoopback = pi.BypassLoopback;
-            BypassOnLocal = pi.BypassOnLocal;
-            proxy = new WebProxy(new Uri("http://localhost"), BypassOnLocal, pi.BypassList);
-        }
-
-        internal void UsePacFile(Uri upstreamProxyConfigurationScript)
-        {
-            AutomaticallyDetectSettings = true;
-            AutomaticConfigurationScript = upstreamProxyConfigurationScript;
-            BypassLoopback = true;
-            BypassOnLocal = false;
-            proxy = new WebProxy(new Uri("http://localhost"), BypassOnLocal);
-        }
-
-        private ProxyInfo getProxyInfo()
-        {
-            var proxyConfig = new NativeMethods.WinHttp.WINHTTP_CURRENT_USER_IE_PROXY_CONFIG();
-            RuntimeHelpers.PrepareConstrainedRegions();
-            try
+            HttpSystemProxyValue? value = null;
+            if (ProxyInfo?.Proxies?.TryGetValue(protocolType.Value, out value) == true)
             {
-                ProxyInfo result;
-                if (NativeMethods.WinHttp.WinHttpGetIEProxyConfigForCurrentUser(ref proxyConfig))
-                {
-                    result = new ProxyInfo(
-                        proxyConfig.AutoDetect,
-                        Marshal.PtrToStringUni(proxyConfig.AutoConfigUrl),
-                        null,
-                        Marshal.PtrToStringUni(proxyConfig.Proxy),
-                        Marshal.PtrToStringUni(proxyConfig.ProxyBypass));
-                }
-                else
-                {
-                    if (Marshal.GetLastWin32Error() == 8)
-                    {
-                        throw new OutOfMemoryException();
-                    }
-
-                    result = new ProxyInfo(true, null, null, null, null);
-                }
-
-                return result;
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(proxyConfig.Proxy);
-                Marshal.FreeHGlobal(proxyConfig.ProxyBypass);
-                Marshal.FreeHGlobal(proxyConfig.AutoConfigUrl);
+                var systemProxy = new ExternalProxy(value!.HostName, value.Port);
+                return systemProxy;
             }
         }
 
-        public void Reset()
-        {
-            state = AutoWebProxyState.Uninitialized;
-            autoDetectFailed = false;
-        }
+        return null;
+    }
 
-        private int getAutoProxies(Uri destination, Uri? scriptLocation, out string? proxyListString)
+    public void LoadFromIE()
+    {
+        var pi = getProxyInfo();
+        ProxyInfo = pi;
+        AutomaticallyDetectSettings = pi.AutoDetect == true;
+        AutomaticConfigurationScript = pi.AutoConfigUrl == null ? null : new Uri(pi.AutoConfigUrl);
+        BypassLoopback = pi.BypassLoopback;
+        BypassOnLocal = pi.BypassOnLocal;
+        proxy = new WebProxy(new Uri("http://localhost"), BypassOnLocal, pi.BypassList);
+    }
+
+    internal void UsePacFile(Uri upstreamProxyConfigurationScript)
+    {
+        AutomaticallyDetectSettings = true;
+        AutomaticConfigurationScript = upstreamProxyConfigurationScript;
+        BypassLoopback = true;
+        BypassOnLocal = false;
+        proxy = new WebProxy(new Uri("http://localhost"), BypassOnLocal);
+    }
+
+    private ProxyInfo getProxyInfo()
+    {
+        var proxyConfig = new NativeMethods.WinHttp.WINHTTP_CURRENT_USER_IE_PROXY_CONFIG();
+        RuntimeHelpers.PrepareConstrainedRegions();
+        try
         {
-            int num = 0;
-            var autoProxyOptions = new NativeMethods.WinHttp.WINHTTP_AUTOPROXY_OPTIONS();
-            autoProxyOptions.AutoLogonIfChallenged = false;
-            if (scriptLocation == null)
+            ProxyInfo result;
+            if (NativeMethods.WinHttp.WinHttpGetIEProxyConfigForCurrentUser(ref proxyConfig))
             {
-                autoProxyOptions.Flags = NativeMethods.WinHttp.AutoProxyFlags.AutoDetect;
-                autoProxyOptions.AutoConfigUrl = null;
-                autoProxyOptions.AutoDetectFlags =
-                    NativeMethods.WinHttp.AutoDetectType.Dhcp | NativeMethods.WinHttp.AutoDetectType.DnsA;
+                result = new ProxyInfo(
+                    proxyConfig.AutoDetect,
+                    Marshal.PtrToStringUni(proxyConfig.AutoConfigUrl),
+                    null,
+                    Marshal.PtrToStringUni(proxyConfig.Proxy),
+                    Marshal.PtrToStringUni(proxyConfig.ProxyBypass));
             }
             else
             {
-                autoProxyOptions.Flags = NativeMethods.WinHttp.AutoProxyFlags.AutoProxyConfigUrl;
-                autoProxyOptions.AutoConfigUrl = scriptLocation.ToString();
-                autoProxyOptions.AutoDetectFlags = NativeMethods.WinHttp.AutoDetectType.None;
+                if (Marshal.GetLastWin32Error() == 8)
+                {
+                    throw new OutOfMemoryException();
+                }
+
+                result = new ProxyInfo(true, null, null, null, null);
             }
 
-            if (!winHttpGetProxyForUrl(destination.ToString(), ref autoProxyOptions, out proxyListString))
-            {
-                num = getLastWin32Error();
+            return result;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(proxyConfig.Proxy);
+            Marshal.FreeHGlobal(proxyConfig.ProxyBypass);
+            Marshal.FreeHGlobal(proxyConfig.AutoConfigUrl);
+        }
+    }
 
-                if (num == (int)NativeMethods.WinHttp.ErrorCodes.LoginFailure && Credentials != null)
+    public void Reset()
+    {
+        state = AutoWebProxyState.Uninitialized;
+        autoDetectFailed = false;
+    }
+
+    private int getAutoProxies(Uri destination, Uri? scriptLocation, out string? proxyListString)
+    {
+        int num = 0;
+        var autoProxyOptions = new NativeMethods.WinHttp.WINHTTP_AUTOPROXY_OPTIONS();
+        autoProxyOptions.AutoLogonIfChallenged = false;
+        if (scriptLocation == null)
+        {
+            autoProxyOptions.Flags = NativeMethods.WinHttp.AutoProxyFlags.AutoDetect;
+            autoProxyOptions.AutoConfigUrl = null;
+            autoProxyOptions.AutoDetectFlags =
+                NativeMethods.WinHttp.AutoDetectType.Dhcp | NativeMethods.WinHttp.AutoDetectType.DnsA;
+        }
+        else
+        {
+            autoProxyOptions.Flags = NativeMethods.WinHttp.AutoProxyFlags.AutoProxyConfigUrl;
+            autoProxyOptions.AutoConfigUrl = scriptLocation.ToString();
+            autoProxyOptions.AutoDetectFlags = NativeMethods.WinHttp.AutoDetectType.None;
+        }
+
+        if (!winHttpGetProxyForUrl(destination.ToString(), ref autoProxyOptions, out proxyListString))
+        {
+            num = getLastWin32Error();
+
+            if (num == (int)NativeMethods.WinHttp.ErrorCodes.LoginFailure && Credentials != null)
+            {
+                autoProxyOptions.AutoLogonIfChallenged = true;
+                if (!winHttpGetProxyForUrl(destination.ToString(), ref autoProxyOptions, out proxyListString))
                 {
-                    autoProxyOptions.AutoLogonIfChallenged = true;
-                    if (!winHttpGetProxyForUrl(destination.ToString(), ref autoProxyOptions, out proxyListString))
-                    {
-                        num = getLastWin32Error();
-                    }
+                    num = getLastWin32Error();
                 }
             }
-
-            return num;
         }
 
-        private bool winHttpGetProxyForUrl(string destination,
-            ref NativeMethods.WinHttp.WINHTTP_AUTOPROXY_OPTIONS autoProxyOptions, out string? proxyListString)
+        return num;
+    }
+
+    private bool winHttpGetProxyForUrl(string destination,
+        ref NativeMethods.WinHttp.WINHTTP_AUTOPROXY_OPTIONS autoProxyOptions, out string? proxyListString)
+    {
+        proxyListString = null;
+        bool flag;
+        var proxyInfo = new NativeMethods.WinHttp.WINHTTP_PROXY_INFO();
+        RuntimeHelpers.PrepareConstrainedRegions();
+        try
         {
-            proxyListString = null;
-            bool flag;
-            var proxyInfo = new NativeMethods.WinHttp.WINHTTP_PROXY_INFO();
-            RuntimeHelpers.PrepareConstrainedRegions();
-            try
+            flag = NativeMethods.WinHttp.WinHttpGetProxyForUrl(session, destination, ref autoProxyOptions,
+                out proxyInfo);
+            if (flag)
             {
-                flag = NativeMethods.WinHttp.WinHttpGetProxyForUrl(session, destination, ref autoProxyOptions,
-                    out proxyInfo);
-                if (flag)
-                {
-                    proxyListString = Marshal.PtrToStringUni(proxyInfo.Proxy);
-                }
+                proxyListString = Marshal.PtrToStringUni(proxyInfo.Proxy);
             }
-            finally
-            {
-                Marshal.FreeHGlobal(proxyInfo.Proxy);
-                Marshal.FreeHGlobal(proxyInfo.ProxyBypass);
-            }
-
-            return flag;
         }
-
-        private static int getLastWin32Error()
+        finally
         {
-            int lastWin32Error = Marshal.GetLastWin32Error();
-            if (lastWin32Error == 8)
-            {
-                throw new OutOfMemoryException();
-            }
-
-            return lastWin32Error;
+            Marshal.FreeHGlobal(proxyInfo.Proxy);
+            Marshal.FreeHGlobal(proxyInfo.ProxyBypass);
         }
 
-        private static bool isRecoverableAutoProxyError(NativeMethods.WinHttp.ErrorCodes errorCode)
+        return flag;
+    }
+
+    private static int getLastWin32Error()
+    {
+        int lastWin32Error = Marshal.GetLastWin32Error();
+        if (lastWin32Error == 8)
         {
-            switch (errorCode)
-            {
-                case NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError:
-                case NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed:
-                case NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript:
-                case NativeMethods.WinHttp.ErrorCodes.UnableToDownloadScript:
-                case NativeMethods.WinHttp.ErrorCodes.LoginFailure:
-                case NativeMethods.WinHttp.ErrorCodes.OperationCancelled:
-                case NativeMethods.WinHttp.ErrorCodes.Timeout:
-                case NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme:
-                    return true;
-                default:
-                    return false;
-            }
+            throw new OutOfMemoryException();
         }
 
-        private static AutoWebProxyState getStateFromErrorCode(NativeMethods.WinHttp.ErrorCodes errorCode)
+        return lastWin32Error;
+    }
+
+    private static bool isRecoverableAutoProxyError(NativeMethods.WinHttp.ErrorCodes errorCode)
+    {
+        return errorCode switch
         {
-            if (errorCode == 0L)
-            {
-                return AutoWebProxyState.Completed;
-            }
+            NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError or NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed or NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript or NativeMethods.WinHttp.ErrorCodes.UnableToDownloadScript or NativeMethods.WinHttp.ErrorCodes.LoginFailure or NativeMethods.WinHttp.ErrorCodes.OperationCancelled or NativeMethods.WinHttp.ErrorCodes.Timeout or NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme => true,
+            _ => false,
+        };
+    }
 
-            switch (errorCode)
-            {
-                case NativeMethods.WinHttp.ErrorCodes.UnableToDownloadScript:
-                    return AutoWebProxyState.DownloadFailure;
-                case NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError:
-                case NativeMethods.WinHttp.ErrorCodes.InvalidUrl:
-                case NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript:
-                    return AutoWebProxyState.Completed;
-                case NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed:
-                    return AutoWebProxyState.DiscoveryFailure;
-                case NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme:
-                    return AutoWebProxyState.UnrecognizedScheme;
-                default:
-                    return AutoWebProxyState.CompilationFailure;
-            }
-        }
-
-        private static string removeWhitespaces(string value)
+    private static AutoWebProxyState getStateFromErrorCode(NativeMethods.WinHttp.ErrorCodes errorCode)
+    {
+        if (errorCode == 0L)
         {
-            var stringBuilder = new StringBuilder();
-            foreach (char c in value)
-            {
-                if (!char.IsWhiteSpace(c))
-                {
-                    stringBuilder.Append(c);
-                }
-            }
-
-            return stringBuilder.ToString();
+            return AutoWebProxyState.Completed;
         }
 
-        private static bool isErrorFatalForAutoDetect(NativeMethods.WinHttp.ErrorCodes errorCode)
+        return errorCode switch
         {
-            switch (errorCode)
-            {
-                case NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript:
-                case NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError:
-                case NativeMethods.WinHttp.ErrorCodes.Success:
-                case NativeMethods.WinHttp.ErrorCodes.InvalidUrl:
-                    return false;
-                default:
-                    return true;
-            }
-        }
+            NativeMethods.WinHttp.ErrorCodes.UnableToDownloadScript => AutoWebProxyState.DownloadFailure,
+            NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError or NativeMethods.WinHttp.ErrorCodes.InvalidUrl or NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript => AutoWebProxyState.Completed,
+            NativeMethods.WinHttp.ErrorCodes.AudodetectionFailed => AutoWebProxyState.DiscoveryFailure,
+            NativeMethods.WinHttp.ErrorCodes.UnrecognizedScheme => AutoWebProxyState.UnrecognizedScheme,
+            _ => AutoWebProxyState.CompilationFailure,
+        };
+    }
 
-        private enum AutoWebProxyState
+    private static string removeWhitespaces(string value)
+    {
+        var stringBuilder = new StringBuilder();
+        foreach (char c in value)
         {
-            Uninitialized,
-            DiscoveryFailure,
-            DownloadFailure,
-            CompilationFailure,
-            UnrecognizedScheme,
-            Completed
+            if (!char.IsWhiteSpace(c))
+            {
+                stringBuilder.Append(c);
+            }
         }
 
-        private bool disposed = false;
+        return stringBuilder.ToString();
+    }
 
-        public void Dispose()
+    private static bool isErrorFatalForAutoDetect(NativeMethods.WinHttp.ErrorCodes errorCode)
+    {
+        return errorCode switch
         {
-            if (disposed)
-            {
-                return;
-            }
+            NativeMethods.WinHttp.ErrorCodes.BadAutoProxyScript or NativeMethods.WinHttp.ErrorCodes.AutoProxyServiceError or NativeMethods.WinHttp.ErrorCodes.Success or NativeMethods.WinHttp.ErrorCodes.InvalidUrl => false,
+            _ => true,
+        };
+    }
 
-            if (session == null || session.IsInvalid)
-            {
-                return;
-            }
+    private enum AutoWebProxyState
+    {
+        Uninitialized,
+        DiscoveryFailure,
+        DownloadFailure,
+        CompilationFailure,
+        UnrecognizedScheme,
+        Completed
+    }
 
-            session.Close();
+    private bool disposed = false;
 
-            disposed = true;
+    public void Dispose()
+    {
+        if (disposed)
+        {
+            return;
         }
+
+        if (session == null || session.IsInvalid)
+        {
+            return;
+        }
+
+        session.Close();
+
+        disposed = true;
     }
 }

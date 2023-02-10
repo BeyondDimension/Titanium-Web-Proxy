@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+
 [assembly: SuppressIldasm]
 
 // General Information about an assembly is controlled through the following
@@ -46,7 +47,6 @@ using System.Runtime.InteropServices;
 //      Revision
 //
 
-#if !UnifiedVersion
-[assembly: AssemblyVersion("1.0.1")]
-[assembly: AssemblyFileVersion("1.0.1")]
-#endif
+[assembly: AssemblyVersion("3.1.1344.30210")]
+[assembly: AssemblyFileVersion("3.1.1344.30210")]
+// 3.1.1344.(yyyy-2020)MMdd

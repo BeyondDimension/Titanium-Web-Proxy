@@ -1,125 +1,121 @@
-﻿using System;
-using System.IO;
-using System.Net;
+﻿using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
-using System.Threading.Tasks;
 using Titanium.Web.Proxy.Helpers;
 using Titanium.Web.Proxy.Models;
 
-namespace Titanium.Web.Proxy.Network.Tcp
+namespace Titanium.Web.Proxy.Network.TcpConnection;
+
+/// <summary>
+///     An object that holds TcpConnection to a particular server and port
+/// </summary>
+internal class TcpClientConnection : IDisposable
 {
-    /// <summary>
-    ///     An object that holds TcpConnection to a particular server and port
-    /// </summary>
-    internal class TcpClientConnection : IDisposable
+    public object ClientUserData { get; set; }
+
+    internal TcpClientConnection(ProxyServer proxyServer, Socket tcpClientSocket)
     {
-        public object ClientUserData { get; set; }
+        this.tcpClientSocket = tcpClientSocket;
+        this.proxyServer = proxyServer;
+        this.proxyServer.UpdateClientConnectionCount(true);
+    }
 
-        internal TcpClientConnection(ProxyServer proxyServer, Socket tcpClientSocket)
+    private ProxyServer proxyServer { get; }
+
+    public Guid Id { get; } = Guid.NewGuid();
+
+    public EndPoint LocalEndPoint => tcpClientSocket.LocalEndPoint;
+
+    public EndPoint RemoteEndPoint => tcpClientSocket.RemoteEndPoint;
+
+    internal SslProtocols SslProtocol { get; set; }
+
+    internal SslApplicationProtocol NegotiatedApplicationProtocol { get; set; }
+
+    private readonly Socket tcpClientSocket;
+
+    private int? processId;
+
+    public Stream GetStream()
+    {
+        return new NetworkStream(tcpClientSocket, true);
+    }
+
+    public int GetProcessId(ProxyEndPoint endPoint)
+    {
+        if (processId.HasValue)
         {
-            this.tcpClientSocket = tcpClientSocket;
-            this.proxyServer = proxyServer;
-            this.proxyServer.UpdateClientConnectionCount(true);
+            return processId.Value;
         }
 
-        private ProxyServer proxyServer { get; }
-
-        public Guid Id { get; } = Guid.NewGuid();
-
-        public EndPoint LocalEndPoint => tcpClientSocket.LocalEndPoint;
-
-        public EndPoint RemoteEndPoint => tcpClientSocket.RemoteEndPoint;
-
-        internal SslProtocols SslProtocol { get; set; }
-
-        internal SslApplicationProtocol NegotiatedApplicationProtocol { get; set; }
-
-        private readonly Socket tcpClientSocket;
-
-        private int? processId;
-
-        public Stream GetStream()
+        if (RunTime.IsWindows())
         {
-            return new NetworkStream(tcpClientSocket, true);
-        }
+            var remoteEndPoint = (IPEndPoint)RemoteEndPoint;
 
-        public int GetProcessId(ProxyEndPoint endPoint)
-        {
-            if (processId.HasValue)
+            // If client is localhost get the process id
+            if (NetworkHelper.IsLocalIpAddress(remoteEndPoint.Address))
             {
-                return processId.Value;
+                processId = TcpHelper.GetProcessIdByLocalPort(endPoint.IpAddress.AddressFamily, remoteEndPoint.Port);
+            }
+            else
+            {
+                // can't access process Id of remote request from remote machine
+                processId = -1;
             }
 
-            if (RunTime.IsWindows())
+            return processId.Value;
+        }
+
+        throw new PlatformNotSupportedException();
+    }
+
+    private bool disposed = false;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposed)
+        {
+            return;
+        }
+
+        Task.Run(async () =>
+        {
+            // delay calling tcp connection close()
+            // so that client have enough time to call close first.
+            // This way we can push tcp Time_Wait to client side when possible.
+            await Task.Delay(1000);
+            proxyServer.UpdateClientConnectionCount(false);
+
+            if (disposing)
             {
-                var remoteEndPoint = (IPEndPoint)RemoteEndPoint;
-
-                // If client is localhost get the process id
-                if (NetworkHelper.IsLocalIpAddress(remoteEndPoint.Address))
+                try
                 {
-                    processId = TcpHelper.GetProcessIdByLocalPort(endPoint.IpAddress.AddressFamily, remoteEndPoint.Port);
+                    tcpClientSocket.Close();
                 }
-                else
+                catch
                 {
-                    // can't access process Id of remote request from remote machine
-                    processId = -1;
+                    // ignore
                 }
-
-                return processId.Value;
             }
+        });
 
-            throw new PlatformNotSupportedException();
-        }
+        disposed = true;
+    }
 
-        private bool disposed = false;
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            Task.Run(async () =>
-            {
-                // delay calling tcp connection close()
-                // so that client have enough time to call close first.
-                // This way we can push tcp Time_Wait to client side when possible.
-                await Task.Delay(1000);
-                proxyServer.UpdateClientConnectionCount(false);
-
-                if (disposing)
-                {
-                    try
-                    {
-                        tcpClientSocket.Close();
-                    }
-                    catch
-                    {
-                        // ignore
-                    }
-                }
-            });
-
-            disposed = true;
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        ~TcpClientConnection()
-        {
+    ~TcpClientConnection()
+    {
 #if DEBUG
-            // Finalizer should not be called
-            System.Diagnostics.Debugger.Break();
+        // Finalizer should not be called
+        System.Diagnostics.Debugger.Break();
 #endif
 
-            Dispose(false);
-        }
+        Dispose(false);
     }
 }

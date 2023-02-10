@@ -1,27 +1,21 @@
-﻿using System;
-using System.IO;
-using System.IO.Compression;
+﻿using System.IO.Compression;
+using Titanium.Web.Proxy.Models;
 
-namespace Titanium.Web.Proxy.Compression
+namespace Titanium.Web.Proxy.Compression;
+
+/// <summary>
+///     A factory to generate the de-compression methods based on the type of compression
+/// </summary>
+internal class DecompressionFactory
 {
-    /// <summary>
-    ///     A factory to generate the de-compression methods based on the type of compression
-    /// </summary>
-    internal class DecompressionFactory
+    internal static Stream Create(HttpCompression type, Stream stream, bool leaveOpen = true)
     {
-        internal static Stream Create(HttpCompression type, Stream stream, bool leaveOpen = true)
+        return type switch
         {
-            switch (type)
-            {
-                case HttpCompression.Gzip:
-                    return new GZipStream(stream, CompressionMode.Decompress, leaveOpen);
-                case HttpCompression.Deflate:
-                    return new DeflateStream(stream, CompressionMode.Decompress, leaveOpen);
-                case HttpCompression.Brotli:
-                    return new BrotliStream(stream, CompressionMode.Decompress, leaveOpen);
-                default:
-                    throw new Exception($"Unsupported decompression mode: {type}");
-            }
-        }
+            HttpCompression.Gzip => new GZipStream(stream, CompressionMode.Decompress, leaveOpen),
+            HttpCompression.Deflate => new DeflateStream(stream, CompressionMode.Decompress, leaveOpen),
+            HttpCompression.Brotli => new BrotliStream(stream, CompressionMode.Decompress, leaveOpen),
+            _ => throw new Exception($"Unsupported decompression mode: {type}"),
+        };
     }
 }

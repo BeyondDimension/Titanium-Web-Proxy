@@ -1,99 +1,96 @@
-﻿using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Titanium.Web.Proxy.Helpers;
-using Titanium.Web.Proxy.StreamExtended.BufferPool;
+﻿using Titanium.Web.Proxy.Network.BufferPool;
+using Titanium.Web.Proxy.Network.Readers;
+using Titanium.Web.Proxy.Network.Writers;
 
-namespace Titanium.Web.Proxy.StreamExtended.Network
+namespace Titanium.Web.Proxy.Network.Streams;
+
+/// <summary>
+///     Copies the source stream to destination stream.
+///     But this let users to peek and read the copying process.
+/// </summary>
+internal class CopyStream : ILineStream, IDisposable
 {
-    /// <summary>
-    ///     Copies the source stream to destination stream.
-    ///     But this let users to peek and read the copying process.
-    /// </summary>
-    internal class CopyStream : ILineStream, IDisposable
+    private readonly IHttpStreamReader reader;
+
+    private readonly IHttpStreamWriter writer;
+
+    private readonly IBufferPool bufferPool;
+
+    private int bufferLength;
+
+    private readonly byte[] buffer;
+
+    public bool DataAvailable => reader.DataAvailable;
+
+    public long ReadBytes { get; private set; }
+
+    public CopyStream(IHttpStreamReader reader, IHttpStreamWriter writer, IBufferPool bufferPool)
     {
-        private readonly IHttpStreamReader reader;
+        this.reader = reader;
+        this.writer = writer;
+        buffer = bufferPool.GetBuffer();
+        this.bufferPool = bufferPool;
+    }
 
-        private readonly IHttpStreamWriter writer;
+    public async ValueTask<bool> FillBufferAsync(CancellationToken cancellationToken = default)
+    {
+        await FlushAsync(cancellationToken);
+        return await reader.FillBufferAsync(cancellationToken);
+    }
 
-        private readonly IBufferPool bufferPool;
-
-        private int bufferLength;
-
-        private readonly byte[] buffer;
-
-        public bool DataAvailable => reader.DataAvailable;
-
-        public long ReadBytes { get; private set; }
-
-        public CopyStream(IHttpStreamReader reader, IHttpStreamWriter writer, IBufferPool bufferPool)
+    public async Task FlushAsync(CancellationToken cancellationToken = default)
+    {
+        // send out the current data from from the buffer
+        if (bufferLength > 0)
         {
-            this.reader = reader;
-            this.writer = writer;
-            buffer = bufferPool.GetBuffer();
-            this.bufferPool = bufferPool;
+            await writer.WriteAsync(buffer, 0, bufferLength, cancellationToken);
+            bufferLength = 0;
+        }
+    }
+
+    public byte ReadByteFromBuffer()
+    {
+        var b = reader.ReadByteFromBuffer();
+        buffer[bufferLength++] = b;
+        ReadBytes++;
+        return b;
+    }
+
+    public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
+    {
+        return HttpStream.ReadLineInternalAsync(this, bufferPool, cancellationToken);
+    }
+
+    private bool disposed = false;
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (disposed)
+        {
+            return;
         }
 
-        public async ValueTask<bool> FillBufferAsync(CancellationToken cancellationToken = default)
+        if (disposing)
         {
-            await FlushAsync(cancellationToken);
-            return await reader.FillBufferAsync(cancellationToken);
+            bufferPool.ReturnBuffer(buffer);
         }
 
-        public async Task FlushAsync(CancellationToken cancellationToken = default)
-        {
-            // send out the current data from from the buffer
-            if (bufferLength > 0)
-            {
-                await writer.WriteAsync(buffer, 0, bufferLength, cancellationToken);
-                bufferLength = 0;
-            }
-        }
+        disposed = true;
+    }
 
-        public byte ReadByteFromBuffer()
-        {
-            byte b = reader.ReadByteFromBuffer();
-            buffer[bufferLength++] = b;
-            ReadBytes++;
-            return b;
-        }
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
 
-        public ValueTask<string?> ReadLineAsync(CancellationToken cancellationToken = default)
-        {
-            return HttpStream.ReadLineInternalAsync(this, bufferPool, cancellationToken);
-        }
-
-        private bool disposed = false;
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposed)
-            {
-                return;
-            }
-
-            if (disposing)
-            {
-                bufferPool.ReturnBuffer(buffer);
-            }
-
-            disposed = true;
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        ~CopyStream()
-        {
+    ~CopyStream()
+    {
 #if DEBUG
-            // Finalizer should not be called
-            System.Diagnostics.Debugger.Break();
+        // Finalizer should not be called
+        System.Diagnostics.Debugger.Break();
 #endif
 
-            Dispose(false);
-        }
+        Dispose(false);
     }
 }

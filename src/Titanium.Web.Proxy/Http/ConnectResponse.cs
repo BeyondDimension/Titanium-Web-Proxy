@@ -1,31 +1,29 @@
-﻿using System;
-using System.Net;
-using Titanium.Web.Proxy.StreamExtended;
+﻿using System.Net;
+using Titanium.Web.Proxy.Network.Ssl;
 
-namespace Titanium.Web.Proxy.Http
+namespace Titanium.Web.Proxy.Http;
+
+/// <summary>
+/// The tcp tunnel connect response object.
+/// </summary>
+public class ConnectResponse : Response
 {
+    public ServerHelloInfo? ServerHelloInfo { get; set; }
+
     /// <summary>
-    /// The tcp tunnel connect response object.
+    ///     Creates a successful CONNECT response
     /// </summary>
-    public class ConnectResponse : Response
+    /// <param name="httpVersion"></param>
+    /// <returns></returns>
+    internal static ConnectResponse CreateSuccessfulConnectResponse(Version httpVersion)
     {
-        public ServerHelloInfo? ServerHelloInfo { get; set; }
-
-        /// <summary>
-        ///     Creates a successful CONNECT response
-        /// </summary>
-        /// <param name="httpVersion"></param>
-        /// <returns></returns>
-        internal static ConnectResponse CreateSuccessfulConnectResponse(Version httpVersion)
+        var response = new ConnectResponse
         {
-            var response = new ConnectResponse
-            {
-                HttpVersion = httpVersion,
-                StatusCode = (int)HttpStatusCode.OK,
-                StatusDescription = "Connection Established"
-            };
+            HttpVersion = httpVersion,
+            StatusCode = (int)HttpStatusCode.OK,
+            StatusDescription = "Connection Established"
+        };
 
-            return response;
-        }
+        return response;
     }
 }
